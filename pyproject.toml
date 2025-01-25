@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=63.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "auto-flow_pipeline"
+version = "0.1.0"
+description = "Pipeline for 3D vessel localization, 2D vessel segmentation, and flow calculation."
+dependencies = []
+
+# Optional if you want to create a command-line entry point:
+# [project.scripts]
+# my_vessel_pipeline = "src.pipeline_runner:main"
