@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "auto-flow_pipeline"
 version = "0.1.0"
-description = "Pipeline for 3D vessel localization, 2D vessel segmentation, and flow calculation."
+description = "This is the pipeline to use AutoFlow. Further details pending..."
 dependencies = []
 
 # Optional if you want to create a command-line entry point:
