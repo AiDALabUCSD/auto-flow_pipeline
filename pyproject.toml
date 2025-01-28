@@ -3,11 +3,14 @@ requires = ["setuptools>=63.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "auto-flow_pipeline"
+name = "auto_flow_pipeline"
 version = "0.1.0"
-description = "This is the pipeline to use AutoFlow. Further details pending..."
+description = "This is the pipeline to use AutoFlow..."
 dependencies = []
 
-# Optional if you want to create a command-line entry point:
-# [project.scripts]
-# my_vessel_pipeline = "src.pipeline_runner:main"
+# This defines the console script "unzipper"
+[project.scripts]
+unzipper = "src.data_io.unzip:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
