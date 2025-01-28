@@ -4,3 +4,4 @@ __pycache__/
 *.nii.gz
 *.h5
 *.egg-info
+src/notebooks/dicom_to_nifti_sandbox.ipynb
