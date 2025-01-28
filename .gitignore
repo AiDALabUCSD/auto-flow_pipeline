@@ -3,3 +3,4 @@ __pycache__/
 *.nii
 *.nii.gz
 *.h5
+*.egg-info
