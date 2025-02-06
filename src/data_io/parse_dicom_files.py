@@ -2,6 +2,7 @@ import os
 import shutil
 import pandas as pd
 import pydicom
+from tqdm import tqdm
 
 def is_dicom_file(file_path):
     """
@@ -68,7 +69,7 @@ def parse_dicom_folder(folder_path):
     """
     dicom_info_list = []
     for root, _, files in os.walk(folder_path):
-        for file in files:
+        for file in tqdm(files, desc="Processing DICOM files"):
             dicom_path = os.path.join(root, file)
             if is_dicom_file(dicom_path) or dicom_path.endswith('.dcm'):
                 dicom_info = parse_dicom_file(dicom_path)
