@@ -49,8 +49,8 @@ def parse_dicom_file(dicom_path):
             'ImageOrientationPatient': dicom.ImageOrientationPatient,
             'PixelSpacing': dicom.PixelSpacing,
             'SliceThickness': dicom.SliceThickness,
-            'Tag_0019_10B3': dicom.get((0x0019, 0x10B3), 'N/A'),
-            'Tag_0043_1030': dicom.get((0x0043, 0x1030), 'N/A')
+            'Tag_0019_10B3': dicom.get((0x0019, 0x10B3), 'N/A').value if (0x0019, 0x10B3) in dicom else 'N/A',
+            'Tag_0043_1030': dicom.get((0x0043, 0x1030), 'N/A').value if (0x0043, 0x1030) in dicom else 'N/A'
         }
         return info
     except Exception as e:
@@ -104,6 +104,13 @@ def main(dicom_folder, output_folder, overwrite=False):
     patient_name = os.path.basename(os.path.normpath(dicom_folder))
     patient_output_folder = os.path.join(output_folder, patient_name)
     
+    # Debugging statements
+    # print(f"Checking if the patient output folder exists: {patient_output_folder}")
+    # print(f"Absolute path: {os.path.abspath(patient_output_folder)}")
+    # print(f"Exists: {os.path.exists(patient_output_folder)}")
+    # print(f"Is directory: {os.path.isdir(patient_output_folder)}")
+    # print(f"Is file: {os.path.isfile(patient_output_folder)}")
+    
     # Check if the patient folder exists
     if os.path.exists(patient_output_folder):
         if overwrite:
@@ -120,6 +127,7 @@ def main(dicom_folder, output_folder, overwrite=False):
     print(f"DICOM information saved to {patient_output_folder}")
 
 # Example usage
-dicom_folder = '/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/unzipped_images/Cakimtol'
-output_folder = '/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/patients'
-main(dicom_folder, output_folder, overwrite=True)
+if __name__ == "__main__":
+    dicom_folder = '/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/unzipped_images/Cakimtol'
+    output_folder = '/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/patients'
+    main(dicom_folder, output_folder, overwrite=True)
