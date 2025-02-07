@@ -3,6 +3,7 @@ import shutil
 import pandas as pd
 import pydicom
 from tqdm import tqdm
+from multiprocessing import Pool, cpu_count
 
 def is_dicom_file(file_path):
     """
@@ -57,6 +58,12 @@ def parse_dicom_file(dicom_path):
         print(f"Error reading {dicom_path}: {e}")
         return None
 
+def process_file(args):
+    dicom_path, = args
+    if is_dicom_file(dicom_path) or dicom_path.endswith('.dcm'):
+        return parse_dicom_file(dicom_path)
+    return None
+
 def parse_dicom_folder(folder_path):
     """
     Iterates through all DICOM files in a specified folder and extracts relevant information.
@@ -68,13 +75,18 @@ def parse_dicom_folder(folder_path):
     pd.DataFrame: A DataFrame containing the extracted information from all DICOM files.
     """
     dicom_info_list = []
+    file_paths = []
+
     for root, _, files in os.walk(folder_path):
-        for file in tqdm(files, desc="Processing DICOM files"):
+        for file in files:
             dicom_path = os.path.join(root, file)
-            if is_dicom_file(dicom_path) or dicom_path.endswith('.dcm'):
-                dicom_info = parse_dicom_file(dicom_path)
-                if dicom_info:
-                    dicom_info_list.append(dicom_info)
+            file_paths.append((dicom_path,))
+
+    with Pool(cpu_count()) as pool:
+        for dicom_info in tqdm(pool.imap_unordered(process_file, file_paths), total=len(file_paths), desc="Processing DICOM files"):
+            if dicom_info:
+                dicom_info_list.append(dicom_info)
+
     return pd.DataFrame(dicom_info_list)
 
 def save_dicom_info(dicom_info_df, output_folder):
