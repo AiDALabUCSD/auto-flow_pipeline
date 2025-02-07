@@ -13,22 +13,29 @@ def extract_file(input_file, output_dir, overwrite=False):
         input_file (str): Path to the archive file.
         output_dir (str): Directory where the contents will be extracted.
         overwrite (bool): Whether to overwrite existing directories.
+    
+    Returns:
+        str: Status of the extraction ('success', 'ERROR', 'skip').
     """
     try:
         if input_file.endswith('.zip'):
             with zipfile.ZipFile(input_file, 'r') as zip_ref:
-                extract_to_directory(zip_ref, input_file, output_dir, overwrite)
+                return extract_to_directory(zip_ref, input_file, output_dir, overwrite)
         elif input_file.endswith('.tar') or input_file.endswith('.tar.gz') or input_file.endswith('.tgz'):
             with tarfile.open(input_file, 'r') as tar_ref:
-                extract_to_directory(tar_ref, input_file, output_dir, overwrite)
+                return extract_to_directory(tar_ref, input_file, output_dir, overwrite)
         else:
-            print(f"Unsupported file type: {input_file}")
+            tqdm.write(f"Unsupported file type: {input_file}")
+            return 'ERROR'
     except (zipfile.BadZipFile, tarfile.TarError) as e:
-        print(f"Error: {input_file} is not a valid archive file. {e}")
+        tqdm.write(f"Error: {input_file} is not a valid archive file. {e}")
+        return 'ERROR'
     except FileNotFoundError:
-        print(f"Error: {input_file} does not exist.")
+        tqdm.write(f"Error: {input_file} does not exist.")
+        return 'ERROR'
     except Exception as e:
-        print(f"An error occurred: {e}")
+        tqdm.write(f"An error occurred: {e}")
+        return 'ERROR'
 
 def extract_to_directory(archive_ref, input_file, output_dir, overwrite):
     """
@@ -39,6 +46,9 @@ def extract_to_directory(archive_ref, input_file, output_dir, overwrite):
         input_file (str): Path to the archive file.
         output_dir (str): Directory where the contents will be extracted.
         overwrite (bool): Whether to overwrite existing directories.
+    
+    Returns:
+        str: Status of the extraction ('success', 'fail', 'skip').
     """
     # Extract the archive name from the input file name
     archive_name = os.path.splitext(os.path.basename(input_file))[0]
@@ -46,8 +56,8 @@ def extract_to_directory(archive_ref, input_file, output_dir, overwrite):
     archive_dir = os.path.join(output_dir, archive_name)
     
     if not overwrite and os.path.exists(archive_dir):
-        print(f"Skipping extraction of {input_file} as {archive_dir} already exists.")
-        return
+        tqdm.write(f"Skipping extraction of {input_file} as {archive_dir} already exists.")
+        return 'skip'
     
     if os.path.exists(archive_dir):
         shutil.rmtree(archive_dir)
@@ -65,7 +75,8 @@ def extract_to_directory(archive_ref, input_file, output_dir, overwrite):
                 extract_file(archive_file, root)
                 os.remove(archive_file)
     
-    print(f"Successfully extracted {input_file} to {archive_dir}")
+    tqdm.write(f"Successfully extracted {input_file} to {archive_dir}")
+    return 'success'
 
 def unzip_folder(folder_path, output_dir, overwrite=False):
     """
@@ -82,12 +93,19 @@ def unzip_folder(folder_path, output_dir, overwrite=False):
             if file.endswith('.zip') or file.endswith('.tar') or file.endswith('.tar.gz') or file.endswith('.tgz'):
                 archive_files.append(os.path.join(root, file))
     
+    status_dict = {}
     with tqdm(total=len(archive_files), desc="Extracting archives", unit="file") as progress_bar:
         with ProcessPoolExecutor() as executor:
-            futures = [executor.submit(extract_file, archive_file, output_dir, overwrite) for archive_file in archive_files]
+            futures = {executor.submit(extract_file, archive_file, output_dir, overwrite): archive_file for archive_file in archive_files}
             for future in futures:
-                future.result()
+                archive_file = futures[future]
+                status = future.result()
+                status_dict[os.path.basename(archive_file)] = status
                 progress_bar.update(1)
+    
+    # Print the status of all the potential unzips
+    for archive_name, status in status_dict.items():
+        tqdm.write(f"{archive_name}: [{status}]")
 
 # Example usage
 if __name__ == "__main__":
