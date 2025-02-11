@@ -4,6 +4,7 @@ import pandas as pd
 import pydicom
 from tqdm import tqdm
 from multiprocessing import Pool, cpu_count
+import numpy as np
 
 def is_dicom_file(file_path):
     """
@@ -27,12 +28,12 @@ def is_dicom_file(file_path):
 def parse_dicom_file(dicom_path):
     """
     Parses a single DICOM file to extract relevant information.
-    
+
     Parameters:
-    dicom_path (str): Path to the DICOM file.
-    
+        dicom_path (str): Path to the DICOM file.
+
     Returns:
-    dict: A dictionary containing the extracted information.
+        dict: A dictionary containing the extracted information.
     """
     try:
         dicom = pydicom.dcmread(dicom_path)
@@ -45,13 +46,15 @@ def parse_dicom_file(dicom_path):
             'Modality': dicom.Modality,
             'StudyDate': dicom.StudyDate,
             'SeriesDescription': dicom.SeriesDescription,
-            'InstanceNumber': dicom.InstanceNumber, # [0x0020,0x0013]
-            'ImagePositionPatient': dicom.ImagePositionPatient, # [0x0020,0x0032]
-            'ImageOrientationPatient': dicom.ImageOrientationPatient, # [0x0020,0x0037]
-            'PixelSpacing': dicom.PixelSpacing, # [0x0028,0x0030]
-            'SliceThickness': dicom.SliceThickness, # [0x0018,0x0050]
+            'InstanceNumber': dicom.InstanceNumber,  # [0x0020,0x0013]
+            'ImagePositionPatient': dicom.ImagePositionPatient,  # [0x0020,0x0032]
+            'ImageOrientationPatient': dicom.ImageOrientationPatient,  # [0x0020,0x0037]
+            'PixelSpacing': dicom.PixelSpacing,  # [0x0028,0x0030]
+            'SliceThickness': dicom.SliceThickness,  # [0x0018,0x0050]
             'Tag_0019_10B3': dicom.get((0x0019, 0x10B3), 'N/A').value if (0x0019, 0x10B3) in dicom else 'N/A',
-            'Tag_0043_1030': dicom.get((0x0043, 0x1030), 'N/A').value if (0x0043, 0x1030) in dicom else 'N/A'
+            'Tag_0043_1030': dicom.get((0x0043, 0x1030), 'N/A').value if (0x0043, 0x1030) in dicom else 'N/A',
+            'NumberOfTemporalPositions': dicom.get((0x0020, 0x0105), 'N/A').value
+                                        if (0x0020, 0x0105) in dicom else 'N/A'
         }
         return info
     except Exception as e:
@@ -103,6 +106,114 @@ def save_dicom_info(dicom_info_df, output_folder):
     dicom_info_df.to_csv(csv_path, index=False)
     dicom_info_df.to_pickle(pickle_path)
 
+def remove_test_series_by_fewest_rows(df_4d):
+    """
+    Removes the single 'test' series that has fewer rows than all real series.
+    Assumes exactly one SeriesInstanceUID has fewer rows than the others.
+    """
+    # 1. For each SeriesInstanceUID, count how many rows exist
+    counts = df_4d.groupby('SeriesInstanceUID').size().sort_values()
+    
+    # 2. The first in sorted order is the smallest count
+    test_uid = counts.index[0]
+    min_count = counts.iloc[0]
+    
+    # Optionally we can double-check we only have 1 that is smaller:
+    # for example, ensure that the second entry is strictly greater.
+    if len(counts) > 1 and counts.iloc[1] == min_count:
+        print("Warning: There's more than one SeriesInstanceUID with the same (minimum) row count.")
+        print("No changes made. Returning original DataFrame.")
+        return df_4d
+    
+    print(f"Identified test series: {test_uid}, with {min_count} rows. Removing it from DataFrame.")
+    
+    # 3. Drop all rows belonging to that SeriesInstanceUID
+    df_clean = df_4d[df_4d['SeriesInstanceUID'] != test_uid].copy()
+    
+    return df_clean
+
+
+
+def filter_and_save_4d_flow(data_path):
+    """
+    Loads a CSV or pickle file, keeps only 4D flow rows, 
+    adds time_index and slice_index columns based on InstanceNumber,
+    saves the shape of the corresponding .npy file,
+    and writes them as 'flow_info.csv' and 'flow_info.pkl' 
+    in the same directory.
+
+    A file is considered 4D flow if:
+      Tag_0019_10B3 > 1
+      OR
+      (Tag_0043_1030 > 1 AND Tag_0043_1030 < 6)
+
+    time_index = (InstanceNumber - 1) % TDIM
+    slice_index = (InstanceNumber - 1) // TDIM
+
+    TDIM is read from the .npy file in the velocities folder, named "<patient-name>.npy".
+
+    Args:
+        data_path (str): Path to the CSV or pickle file with DICOM info.
+    """
+    # 1. Load the DICOM info DataFrame
+    _, ext = os.path.splitext(data_path)
+    if ext.lower() in ('.pkl', '.pickle'):
+        df = pd.read_pickle(data_path)
+    else:
+        df = pd.read_csv(data_path)
+
+    # 2. Filter for 4D flow
+    mask_4d_flow = (
+        (df['Tag_0019_10B3'].astype(float) > 1) |
+        ((df['Tag_0043_1030'].astype(float) > 1) & (df['Tag_0043_1030'].astype(float) < 6))
+    )
+    df_4d = df[mask_4d_flow].copy()
+
+    # 3. Determine patient name from the path (assuming the folder name is the patient)
+    folder = os.path.dirname(data_path)
+    patient_name = os.path.basename(folder)
+
+    # 4. Load the corresponding .npy file to get TDIM and track shape
+    velocities_dir = "/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/velocities"
+    vel_filepath = os.path.join(velocities_dir, f"{patient_name}.npy")
+
+    # Default values if missing
+    TDIM = 1
+    vel_shape = None
+
+    if os.path.exists(vel_filepath):
+        tempnpy = np.load(vel_filepath)
+        TDIM = tempnpy.shape[0]
+        vel_shape = tempnpy.shape
+    else:
+        print(f"Warning: {vel_filepath} not found. Using TDIM=1 and no shape info.")
+
+    # 5. Compute time_index and slice_index from InstanceNumber (subtracting 1 if 1-based)
+    if 'InstanceNumber' in df_4d.columns:
+        instance_nums = df_4d['InstanceNumber'].astype(int) - 1
+        df_4d['time_index'] = instance_nums % TDIM
+        df_4d['slice_index'] = instance_nums // TDIM
+    else:
+        df_4d['time_index'] = np.nan
+        df_4d['slice_index'] = np.nan
+
+    # 6. Remove test images
+    df_4d = remove_test_series_by_fewest_rows(df_4d)
+
+    # 7. Store the numpy shape in a new column
+    df_4d['vel_npy_shape'] = str(vel_shape) if vel_shape is not None else "N/A"
+
+    # 8. Save the filtered DataFrame with new columns as "flow_info"
+    base = os.path.join(folder, "flow_info")
+    csv_out = base + ".csv"
+    pkl_out = base + ".pkl"
+
+    df_4d.to_csv(csv_out, index=False)
+    df_4d.to_pickle(pkl_out)
+
+    print(f"4D flow (with time_index, slice_index, vel_npy_shape) saved to:\n{csv_out}\n{pkl_out}")
+    return df_4d
+
 def main(dicom_folder, output_folder, overwrite=False):
     """
     Main function to parse DICOM files in a folder and save the extracted information to both a CSV file and a pickle file.
@@ -130,13 +241,20 @@ def main(dicom_folder, output_folder, overwrite=False):
             os.makedirs(patient_output_folder)
         else:
             print(f"Folder {patient_output_folder} already exists. Skipping...")
-            return  # Exit the function early if the folder exists and overwrite is False
+            return
     else:
         os.makedirs(patient_output_folder)
     
+    # Parse and save full DICOM info
     dicom_info_df = parse_dicom_folder(dicom_folder)
     save_dicom_info(dicom_info_df, patient_output_folder)
     print(f"DICOM information saved to {patient_output_folder}")
+
+    # 4D flow filtering step
+    dicom_info_csv = os.path.join(patient_output_folder, "dicom_info.csv")
+    filter_and_save_4d_flow(dicom_info_csv)
+
+    print(f"4D flow information saved to {patient_output_folder} as flow_info.csv/pkl")
 
 # Example usage
 if __name__ == "__main__":
