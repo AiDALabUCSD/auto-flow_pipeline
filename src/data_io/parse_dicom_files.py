@@ -45,11 +45,11 @@ def parse_dicom_file(dicom_path):
             'Modality': dicom.Modality,
             'StudyDate': dicom.StudyDate,
             'SeriesDescription': dicom.SeriesDescription,
-            'InstanceNumber': dicom.InstanceNumber,
-            'ImagePositionPatient': dicom.ImagePositionPatient,
-            'ImageOrientationPatient': dicom.ImageOrientationPatient,
-            'PixelSpacing': dicom.PixelSpacing,
-            'SliceThickness': dicom.SliceThickness,
+            'InstanceNumber': dicom.InstanceNumber, # [0x0020,0x0013]
+            'ImagePositionPatient': dicom.ImagePositionPatient, # [0x0020,0x0032]
+            'ImageOrientationPatient': dicom.ImageOrientationPatient, # [0x0020,0x0037]
+            'PixelSpacing': dicom.PixelSpacing, # [0x0028,0x0030]
+            'SliceThickness': dicom.SliceThickness, # [0x0018,0x0050]
             'Tag_0019_10B3': dicom.get((0x0019, 0x10B3), 'N/A').value if (0x0019, 0x10B3) in dicom else 'N/A',
             'Tag_0043_1030': dicom.get((0x0043, 0x1030), 'N/A').value if (0x0043, 0x1030) in dicom else 'N/A'
         }
