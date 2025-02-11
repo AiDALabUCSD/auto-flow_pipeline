@@ -106,32 +106,103 @@ def save_dicom_info(dicom_info_df, output_folder):
     dicom_info_df.to_csv(csv_path, index=False)
     dicom_info_df.to_pickle(pickle_path)
 
-def remove_test_series_by_fewest_rows(df_4d):
-    """
-    Removes the single 'test' series that has fewer rows than all real series.
-    Assumes exactly one SeriesInstanceUID has fewer rows than the others.
-    """
-    # 1. For each SeriesInstanceUID, count how many rows exist
-    counts = df_4d.groupby('SeriesInstanceUID').size().sort_values()
+# def remove_test_series_by_fewest_rows(df_4d):
+#     """
+#     Removes the single 'test' series that has fewer rows than all real series.
+#     Assumes exactly one SeriesInstanceUID has fewer rows than the others.
+#     """
+#     # 1. For each SeriesInstanceUID, count how many rows exist
+#     counts = df_4d.groupby('SeriesInstanceUID').size().sort_values()
     
-    # 2. The first in sorted order is the smallest count
-    test_uid = counts.index[0]
-    min_count = counts.iloc[0]
+#     # 2. The first in sorted order is the smallest count
+#     test_uid = counts.index[0]
+#     min_count = counts.iloc[0]
     
-    # Optionally we can double-check we only have 1 that is smaller:
-    # for example, ensure that the second entry is strictly greater.
-    if len(counts) > 1 and counts.iloc[1] == min_count:
-        print("Warning: There's more than one SeriesInstanceUID with the same (minimum) row count.")
-        print("No changes made. Returning original DataFrame.")
-        return df_4d
+#     # Optionally we can double-check we only have 1 that is smaller:
+#     # for example, ensure that the second entry is strictly greater.
+#     if len(counts) > 1 and counts.iloc[1] == min_count:
+#         print("Warning: There's more than one SeriesInstanceUID with the same (minimum) row count.")
+#         print("No changes made. Returning original DataFrame.")
+#         return df_4d
     
-    print(f"Identified test series: {test_uid}, with {min_count} rows. Removing it from DataFrame.")
+#     print(f"Identified test series: {test_uid}, with {min_count} rows. Removing it from DataFrame.")
     
-    # 3. Drop all rows belonging to that SeriesInstanceUID
-    df_clean = df_4d[df_4d['SeriesInstanceUID'] != test_uid].copy()
+#     # 3. Drop all rows belonging to that SeriesInstanceUID
+#     df_clean = df_4d[df_4d['SeriesInstanceUID'] != test_uid].copy()
     
-    return df_clean
+#     return df_clean
 
+def identify_4_real_series(df):
+    """
+    Identify exactly 4 SeriesInstanceUIDs that:
+      - Each have a single Tag_0043_1030 value,
+      - They share an identical mapping of (InstanceNumber -> ImagePositionPatient),
+      - Taken together, they have 4 distinct Tag_0043_1030 values (e.g. {2,3,4,5}).
+
+    Returns a filtered DataFrame containing only those 4 series.
+    """
+
+    # 1. Build a dictionary or "signature" for each SeriesInstanceUID:
+    #    - The single Tag_0043_1030 for that series,
+    #    - The mapping of (InstanceNumber -> ImagePositionPatient).
+
+    series_map = {}  # { series_uid: (flow_tag, dict_of_inst2pos) }
+
+    for uid, group in df.groupby('SeriesInstanceUID'):
+        # Because each series has exactly one Tag_0043_1030, confirm or pick the first unique value
+        flow_tags = group['Tag_0043_1030'].unique()
+        if len(flow_tags) != 1:
+            # This implies the series is inconsistent or not what we expect;
+            # skip or handle differently
+            continue
+        flow_tag = flow_tags[0]
+
+        # Build a dict mapping InstanceNumber -> unique ImagePositionPatient
+        inst2pos = {}
+        for inst_num, inst_subset in group.groupby('InstanceNumber'):
+            # We expect exactly 1 unique image position for this instance
+            positions = inst_subset['ImagePositionPatient'].unique()
+            if len(positions) == 1:
+                inst2pos[inst_num] = positions[0]
+            else:
+                # If there's more than one position for the same instance, it's inconsistent
+                # We won't keep it
+                pass
+
+        series_map[uid] = (flow_tag, inst2pos)
+
+    # 2. Convert that map into a DataFrame we can group by "signature."
+    #    A "signature" is how we compare the coverage among different series.
+
+    # We'll convert the inst2pos dict into a stable tuple so it can be compared or hashed
+    def dict_to_tuple(d):
+        # Sort by instance number so the order is consistent
+        return tuple(sorted(d.items()))  # e.g., ((1, [x1,y1,z1]), (2, [x2,y2,z2]), ...)
+
+    rows = []
+    for uid, (flow_tag, inst2pos) in series_map.items():
+        signature = dict_to_tuple(inst2pos)
+        rows.append((uid, flow_tag, signature))
+
+    df_signatures = pd.DataFrame(rows, columns=['uid', 'flow_tag', 'signature'])
+
+    # 3. Group by 'signature' so that all series with the same (InstanceNumber -> Position) coverage
+    #    end up together. Then check if that group has exactly 4 distinct flow_tags (2,3,4,5).
+
+    final_uids = set()
+
+    for signature_value, subset in df_signatures.groupby('signature'):
+        flow_tags = set(subset['flow_tag'].tolist())
+
+        # If these 4 series match up in coverage and have exactly the four distinct flow_tags:
+        # e.g. {2, 3, 4, 5}.  Adjust if your actual "flow tags" differ.
+        if flow_tags == {2, 3, 4, 5} and len(subset) == 4:
+            # Add these to our final keep list
+            final_uids.update(subset['uid'].tolist())
+
+    # 4. Now filter the original DataFrame to only these "real" 4 series
+    df_filtered = df[df['SeriesInstanceUID'].isin(final_uids)].copy()
+    return df_filtered
 
 
 def filter_and_save_4d_flow(data_path):
@@ -197,8 +268,8 @@ def filter_and_save_4d_flow(data_path):
         df_4d['time_index'] = np.nan
         df_4d['slice_index'] = np.nan
 
-    # 6. Remove test images
-    df_4d = remove_test_series_by_fewest_rows(df_4d)
+    # 6. Remove extraneous images
+    df_4d = identify_4_real_series(df_4d)
 
     # 7. Store the numpy shape in a new column
     df_4d['vel_npy_shape'] = str(vel_shape) if vel_shape is not None else "N/A"
@@ -211,7 +282,7 @@ def filter_and_save_4d_flow(data_path):
     df_4d.to_csv(csv_out, index=False)
     df_4d.to_pickle(pkl_out)
 
-    print(f"4D flow (with time_index, slice_index, vel_npy_shape) saved to:\n{csv_out}\n{pkl_out}")
+    # print(f"4D flow (with time_index, slice_index, vel_npy_shape) saved to:\n{csv_out}\n{pkl_out}")
     return df_4d
 
 def main(dicom_folder, output_folder, overwrite=False):
@@ -248,7 +319,7 @@ def main(dicom_folder, output_folder, overwrite=False):
     # Parse and save full DICOM info
     dicom_info_df = parse_dicom_folder(dicom_folder)
     save_dicom_info(dicom_info_df, patient_output_folder)
-    print(f"DICOM information saved to {patient_output_folder}")
+    print(f"DICOM information saved to {patient_output_folder} as dicom_info.csv/pkl")
 
     # 4D flow filtering step
     dicom_info_csv = os.path.join(patient_output_folder, "dicom_info.csv")
