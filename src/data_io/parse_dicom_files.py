@@ -329,6 +329,6 @@ def main(dicom_folder, output_folder, overwrite=False):
 
 # Example usage
 if __name__ == "__main__":
-    dicom_folder = '/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/unzipped_images/Cakimtol'
+    dicom_folder = '/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/unzipped_images/Ackoram'
     output_folder = '/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/patients'
     main(dicom_folder, output_folder, overwrite=True)
