@@ -24,7 +24,7 @@ def load_4dflow_dataframe(path_to_csv_or_pickle):
     df.reset_index(drop=True, inplace=True)
     return df
 
-def process_corrected_velocity_npy(npy_path, affine, RDIM, CDIM, SDIM, TDIM):
+def process_corrected_velocity_npy(npy_path, RDIM, CDIM, SDIM, TDIM):
     tempnpy = np.load(npy_path)
     tempnpy = np.swapaxes(tempnpy, 0, 3)  # Swap (time, component, slice, row, col)
     tempnpy = np.swapaxes(tempnpy, 1, 4)  # Now (row, col, slice, time, component)
@@ -35,13 +35,19 @@ def process_corrected_velocity_npy(npy_path, affine, RDIM, CDIM, SDIM, TDIM):
     RDIM_npy, CDIM_npy = tempnpy.shape[0], tempnpy.shape[1]
     Rspacer = (RDIM - RDIM_npy) // 2
     Cspacer = (CDIM - CDIM_npy) // 2
-    ecc_holder[Rspacer:Rspacer+RDIM_npy, Cspacer:Cspacer+CDIM_npy, :, :, :] = np.copy(tempnpy)
+    ecc_holder[Rspacer:Rspacer+RDIM_npy, Cspacer: Cspacer+CDIM_npy, :, :, :] = np.copy(tempnpy)
     
-    return nib.Nifti1Image(ecc_holder, affine)
+    return ecc_holder
 
-def reconstruct_corrected_velocity_nifti(npy_path, output_path, affine, RDIM, CDIM, SDIM, TDIM):
-    corrected_nifti = process_corrected_velocity_npy(npy_path, affine, RDIM, CDIM, SDIM, TDIM)
-    nib.save(corrected_nifti, output_path)
+def reconstruct_corrected_velocity_nifti(vel_5d, A, output_path):
+    """
+    Create and save the NIfTI file for corrected velocity data.
+    :param vel_5d: Corrected velocity 5D array.
+    :param A: Affine transformation matrix.
+    :param output_path: Output path for the corrected velocity NIfTI file.
+    """
+    corrected_vel_nii = nib.Nifti1Image(vel_5d, A)
+    nib.save(corrected_vel_nii, output_path)
     print(f"Corrected velocity NIfTI saved to {output_path}")
 
 def create_volume_arrays(df, shape_column='vel_npy_shape'):
@@ -239,8 +245,6 @@ def generate_gif_from_velocity_nifti(nifti_path, output_path, n_jobs=-1):
     imageio.mimsave(output_path, images, duration=0.1)  # Save as GIF
     print(f"GIF saved to {output_path}")
 
-
-
 if __name__ == "__main__":
     dicom_folder = '/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/unzipped_images/Ackoram'
     output_folder = '/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/patients/Ackoram'
@@ -248,23 +252,28 @@ if __name__ == "__main__":
     csv_path = os.path.join(output_folder, "flow_info.csv")
     df_4dflow = load_4dflow_dataframe(csv_path)
 
+    ## create and fill the arrays with the 4d flow data pulled from the dicom files
     mag_4d, vel_5d = create_volume_arrays(df_4dflow)
-    
     # Use fill_volume_arrays with parallelization (set n_jobs to the number of workers)
     fill_volume_arrays(df_4dflow, mag_4d, vel_5d, n_jobs=-1)
+
+    ## create a correctly orriented array filled with the corrected velocity data downloaded from tempus
+
+    # Define dimensions for padding correction
+    RDIM, CDIM, SDIM, TDIM = vel_5d.shape[:4]
+    corrected_vel_5d = process_corrected_velocity_npy(velocity_path, RDIM, CDIM, SDIM, TDIM)
 
     Nslices = len(df_4dflow['slice_index'].unique())
     A, Ainv, rowres, colres, sthick, slice_spacing = build_affine(df_4dflow, Nslices)
 
+    # save the 4D flow data as NIfTI files
     mag_path = os.path.join(output_folder, 'mag_4dflow.nii.gz')
     vel_path = os.path.join(output_folder, 'vel-uncorrected_4dflow.nii.gz')
     reconstruct_4dflow_nifti(mag_4d, vel_5d, A, mag_path, vel_path)
-
     corrected_vel_nifti_path = os.path.join(output_folder, 'vel_corrected_4dflow.nii.gz')
-    # Define dimensions for padding correction
-    RDIM, CDIM, SDIM, TDIM = vel_5d.shape[:4]
-    reconstruct_corrected_velocity_nifti(velocity_path, corrected_vel_nifti_path, A, RDIM, CDIM, SDIM, TDIM)
+    reconstruct_corrected_velocity_nifti(corrected_vel_5d, A, corrected_vel_nifti_path)
 
+    # Generate GIFs from the NIfTI files
     gif_path = os.path.join(output_folder, 'mag.gif')
     generate_gif_from_nifti(mag_path, gif_path)
 
