@@ -245,6 +245,72 @@ def generate_gif_from_velocity_nifti(nifti_path, output_path, n_jobs=-1):
     imageio.mimsave(output_path, images, duration=0.1)  # Save as GIF
     print(f"GIF saved to {output_path}")
 
+def find_difference_between_slices(df):
+    """
+    Find the difference between ImagePositionPatient in the second slice and the first slice.
+    
+    Parameters:
+    df (pd.DataFrame): Dataframe containing DICOM metadata.
+    
+    Returns:
+    float: The difference between the ImagePositionPatient values in the z-direction.
+    """
+    # Finds the difference between ImagePositionPatient in the second slice and the first slice
+    first_slice = df[(df['slice_index'] == 0) & (df['time_index'] == 0)]['ImagePositionPatient'].iloc[0]
+    second_slice = df[(df['slice_index'] == 1) & (df['time_index'] == 0)]['ImagePositionPatient'].iloc[0]
+    difference = np.array(second_slice) - np.array(first_slice)
+    return difference[2]  # Assuming the difference in the z-direction is of interest
+
+def find_cross_product_orientation(df):
+    """
+    Find the cross product between the row orientation and the column orientation in ImageOrientationPatient.
+    
+    Parameters:
+    df (pd.DataFrame): Dataframe containing DICOM metadata.
+    
+    Returns:
+    float: The cross product of the row and column orientations in the z-direction.
+    """
+    # Finds the cross product between the row orientation and the column orientation in ImageOrientationPatient
+    first_slice_orientation = df[(df['slice_index'] == 0) & (df['time_index'] == 0)]['ImageOrientationPatient'].iloc[0]
+    row_orientation = np.array(first_slice_orientation[:3])
+    col_orientation = np.array(first_slice_orientation[3:])
+    cross_product = np.cross(row_orientation, col_orientation)
+    return cross_product[2]  # Assuming the cross product in the z-direction is of interest
+
+def check_orientation_and_flip(df, mag_4d, vel_5d, corrected_vel_5d):
+    """
+    Check whether the image and the velocity numpy arrays need to be flipped based on the orientation.
+    
+    Parameters:
+    df (pd.DataFrame): Dataframe containing DICOM metadata.
+    mag_4d (np.ndarray): Magnitude 4D array.
+    vel_5d (np.ndarray): Velocity 5D array.
+    corrected_vel_5d (np.ndarray): Corrected velocity 5D array.
+    
+    Returns:
+    tuple: The potentially flipped mag_4d, vel_5d, and corrected_vel_5d arrays.
+    """
+    # Checks whether the image and the velocity numpy arrays need to be flipped based on the orientation
+    difference = find_difference_between_slices(df)
+    cross_product = find_cross_product_orientation(df)
+    
+    if difference > 0 and cross_product < 0:
+        # Flip the magnitude array along the slice direction
+        mag_4d = np.flip(mag_4d, axis=2)
+    elif difference < 0 and cross_product > 0:
+        # Flip the velocity arrays along the slice direction
+        vel_5d = np.flip(vel_5d, axis=2)
+        corrected_vel_5d = np.flip(corrected_vel_5d, axis=2)
+    elif difference > 0 and cross_product > 0:
+        # Flip both the magnitude and velocity arrays along the slice direction
+        mag_4d = np.flip(mag_4d, axis=2)
+        vel_5d = np.flip(vel_5d, axis=2)
+        corrected_vel_5d = np.flip(corrected_vel_5d, axis=2)
+    # If both the difference and the cross product are negative, no flip is needed
+    
+    return mag_4d, vel_5d, corrected_vel_5d
+
 if __name__ == "__main__":
     dicom_folder = '/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/unzipped_images/Ackoram'
     output_folder = '/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/patients/Ackoram'
