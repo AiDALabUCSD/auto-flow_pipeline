@@ -285,25 +285,19 @@ def filter_and_save_4d_flow(data_path):
     # print(f"4D flow (with time_index, slice_index, vel_npy_shape) saved to:\n{csv_out}\n{pkl_out}")
     return df_4d
 
-def main(dicom_folder, output_folder, overwrite=False):
+def parse_patient(pid, dicom_folder_path, output_folder_path, overwrite=False):
     """
-    Main function to parse DICOM files in a folder and save the extracted information to both a CSV file and a pickle file.
+    Main function to parse DICOM files for a specific patient and save the extracted information to both a CSV file and a pickle file.
     
     Parameters:
-    dicom_folder (str): Path to the folder containing DICOM files.
-    output_folder (str): Folder to save the CSV and pickle files.
+    pid (str): Patient ID.
+    dicom_folder_path (str): General path to the folder containing DICOM files.
+    output_folder_path (str): Folder to save the CSV and pickle files.
     overwrite (bool): Flag to control whether to overwrite existing patient folder.
     """
-    # Extract patient name from the lowest level folder in dicom_folder
-    patient_name = os.path.basename(os.path.normpath(dicom_folder))
-    patient_output_folder = os.path.join(output_folder, patient_name)
-    
-    # Debugging statements
-    # print(f"Checking if the patient output folder exists: {patient_output_folder}")
-    # print(f"Absolute path: {os.path.abspath(patient_output_folder)}")
-    # print(f"Exists: {os.path.exists(patient_output_folder)}")
-    # print(f"Is directory: {os.path.isdir(patient_output_folder)}")
-    # print(f"Is file: {os.path.isfile(patient_output_folder)}")
+    # Construct the full path to the patient's DICOM folder
+    patient_dicom_folder = os.path.join(dicom_folder_path, pid)
+    patient_output_folder = os.path.join(output_folder_path, pid)
     
     # Check if the patient folder exists
     if os.path.exists(patient_output_folder):
@@ -317,7 +311,7 @@ def main(dicom_folder, output_folder, overwrite=False):
         os.makedirs(patient_output_folder)
     
     # Parse and save full DICOM info
-    dicom_info_df = parse_dicom_folder(dicom_folder)
+    dicom_info_df = parse_dicom_folder(patient_dicom_folder)
     save_dicom_info(dicom_info_df, patient_output_folder)
     print(f"DICOM information saved to {patient_output_folder} as dicom_info.csv/pkl")
 
@@ -329,6 +323,7 @@ def main(dicom_folder, output_folder, overwrite=False):
 
 # Example usage
 if __name__ == "__main__":
-    dicom_folder = '/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/unzipped_images/Ackoram'
-    output_folder = '/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/patients'
-    main(dicom_folder, output_folder, overwrite=True)
+    pid = 'Ackoram'
+    dicom_folder_path = '/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/unzipped_images'
+    output_folder_path = '/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/patients'
+    parse_patient(pid, dicom_folder_path, output_folder_path, overwrite=True)
