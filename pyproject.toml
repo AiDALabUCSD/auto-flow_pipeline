@@ -10,3 +10,6 @@ dependencies = []
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[project.scripts]
+parse_all_dicoms = "auto_flow_pipeline.drivers_files.parse_all_dicoms_driver:main"
