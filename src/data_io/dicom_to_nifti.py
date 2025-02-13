@@ -11,6 +11,16 @@ from joblib import Parallel, delayed
 from tqdm import tqdm
 
 def load_4dflow_dataframe(path_to_csv_or_pickle):
+    """
+    Load the dataframe from a CSV or pickle file.
+    
+    Parameters:
+    path_to_csv_or_pickle (str): Path to the CSV or pickle file.
+    
+    Returns:
+    pd.DataFrame: Loaded and sorted dataframe.
+    """
+    # Load the dataframe from a CSV or pickle file
     _, ext = os.path.splitext(path_to_csv_or_pickle)
     if ext.lower() == '.csv':
         df = pd.read_csv(path_to_csv_or_pickle)
@@ -25,6 +35,20 @@ def load_4dflow_dataframe(path_to_csv_or_pickle):
     return df
 
 def process_corrected_velocity_npy(npy_path, RDIM, CDIM, SDIM, TDIM):
+    """
+    Load and process the corrected velocity numpy array.
+    
+    Parameters:
+    npy_path (str): Path to the numpy file.
+    RDIM (int): Row dimension.
+    CDIM (int): Column dimension.
+    SDIM (int): Slice dimension.
+    TDIM (int): Time dimension.
+    
+    Returns:
+    np.ndarray: Processed and padded velocity array.
+    """
+    # Load and process the corrected velocity numpy array
     tempnpy = np.load(npy_path)
     tempnpy = np.swapaxes(tempnpy, 0, 3)  # Swap (time, component, slice, row, col)
     tempnpy = np.swapaxes(tempnpy, 1, 4)  # Now (row, col, slice, time, component)
@@ -42,16 +66,29 @@ def process_corrected_velocity_npy(npy_path, RDIM, CDIM, SDIM, TDIM):
 def reconstruct_corrected_velocity_nifti(vel_5d, A, output_path):
     """
     Create and save the NIfTI file for corrected velocity data.
-    :param vel_5d: Corrected velocity 5D array.
-    :param A: Affine transformation matrix.
-    :param output_path: Output path for the corrected velocity NIfTI file.
+    
+    Parameters:
+    vel_5d (np.ndarray): Corrected velocity 5D array.
+    A (np.ndarray): Affine transformation matrix.
+    output_path (str): Output path for the corrected velocity NIfTI file.
     """
+    # Create and save the NIfTI file for corrected velocity data
     corrected_vel_nii = nib.Nifti1Image(vel_5d, A)
     nib.save(corrected_vel_nii, output_path)
     print(f"Corrected velocity NIfTI saved to {output_path}")
 
 def create_volume_arrays(df, shape_column='vel_npy_shape'):
-    # Determine final (nx, ny, nz, nt)
+    """
+    Determine final (nx, ny, nz, nt) dimensions and allocate arrays for magnitude and velocity data.
+    
+    Parameters:
+    df (pd.DataFrame): Dataframe containing DICOM metadata.
+    shape_column (str): Column name for the shape information (default is 'vel_npy_shape').
+    
+    Returns:
+    tuple: Allocated magnitude and velocity arrays.
+    """
+    # Determine final (nx, ny, nz, nt) dimensions
     max_time = df['time_index'].max()
     max_slice = df['slice_index'].max()
     num_time_points = int(max_time) + 1
@@ -61,13 +98,11 @@ def create_volume_arrays(df, shape_column='vel_npy_shape'):
     sample_file = df['FilePath'].iloc[0]
     pix_read = pydicom.dcmread(sample_file, stop_before_pixels=False)
     pix = pix_read.pixel_array
-    # print('pix.shape:', pix.shape)
     nx, ny = pix.shape
     
-    # Allocate
+    # Allocate arrays for magnitude and velocity data
     mag_4d = np.zeros((nx, ny, num_slices, num_time_points), dtype=np.int16)
     vel_5d = np.zeros((nx, ny, num_slices, num_time_points, 3), dtype=np.int16)
-    # Using int16 for magnitude and velocity data to ensure precision in calculations
     return mag_4d, vel_5d
 
 def fill_volume_arrays(df, mag_4d, vel_5d,
@@ -75,16 +110,19 @@ def fill_volume_arrays(df, mag_4d, vel_5d,
                        filepath_col='FilePath',
                        n_jobs=1):
     """
-    Fills the provided mag_4d and vel_5d arrays in either serial or parallel.
-    :param df: Pandas dataframe with DICOM metadata.
-    :param mag_4d: Pre-allocated magnitude volume array.
-    :param vel_5d: Pre-allocated velocity volume array.
-    :param tag_col: Column name with the tag value used to identify mag/velocity.
-    :param filepath_col: Column name containing the DICOM file path.
-    :param n_jobs: Number of parallel jobs. Use -1 for all available cores.
+    Fill the provided mag_4d and vel_5d arrays in either serial or parallel.
+    
+    Parameters:
+    df (pd.DataFrame): Dataframe with DICOM metadata.
+    mag_4d (np.ndarray): Pre-allocated magnitude volume array.
+    vel_5d (np.ndarray): Pre-allocated velocity volume array.
+    tag_col (str): Column name with the tag value used to identify mag/velocity.
+    filepath_col (str): Column name containing the DICOM file path.
+    n_jobs (int): Number of parallel jobs. Use -1 for all available cores.
     """
+    # Fills the provided mag_4d and vel_5d arrays in either serial or parallel
 
-    # 1) Parallel read and parse pixel data
+    # Function to process each row of the dataframe
     def process_row(row):
         ds = pydicom.dcmread(row[filepath_col])
         pix = ds.pixel_array.astype(np.int16)
@@ -93,12 +131,13 @@ def fill_volume_arrays(df, mag_4d, vel_5d,
         tag_value = int(row[tag_col])
         return (t, s, tag_value, pix)
 
+    # Parallel read and parse pixel data
     results = Parallel(n_jobs=n_jobs)(
         delayed(process_row)(row)
         for _, row in tqdm(df.iterrows(), total=len(df), desc="Reading DICOMs")
     )
 
-    # 2) Fill the arrays
+    # Fill the arrays with the parsed data
     for (t, s, tag_value, pix) in tqdm(results, desc="Filling arrays"):
         if tag_value == 2:
             mag_4d[..., s, t] = pix
@@ -110,6 +149,17 @@ def fill_volume_arrays(df, mag_4d, vel_5d,
             vel_5d[..., s, t, 2] = pix  # SI velocity
 
 def build_affine(flow_info_df, Nslices):
+    """
+    Build the affine transformation matrix from DICOM metadata.
+    
+    Parameters:
+    flow_info_df (pd.DataFrame): Dataframe containing DICOM metadata.
+    Nslices (int): Number of slices.
+    
+    Returns:
+    tuple: Affine matrix, inverse affine matrix, row resolution, column resolution, slice thickness, and slice spacing.
+    """
+    # Build the affine transformation matrix from DICOM metadata
     first_slice_path = flow_info_df[(flow_info_df['time_index'] == 0) & (flow_info_df['slice_index'] == 0)]['FilePath'].iloc[0]
     last_slice_path = flow_info_df[(flow_info_df['time_index'] == 0) & (flow_info_df['slice_index'] == flow_info_df['slice_index'].max())]['FilePath'].iloc[0]
 
@@ -117,8 +167,6 @@ def build_affine(flow_info_df, Nslices):
     last_slice = pydicom.dcmread(last_slice_path)
 
     dircos = first_slice.ImageOrientationPatient
-    # print("dircos:", dircos)
-    # Convert dircos to a list of floats
     dircos = [float(val) for val in dircos]
 
     F = np.zeros((3, 2), dtype=np.float64)
@@ -148,12 +196,15 @@ def build_affine(flow_info_df, Nslices):
 def reconstruct_4dflow_nifti(mag_4d, vel_5d, A, out_mag_path, out_vel_path):
     """
     Create and save the NIfTI files for magnitude and velocity data.
-    :param mag_4d: Magnitude 4D array.
-    :param vel_5d: Velocity 5D array.
-    :param A: Affine transformation matrix.
-    :param out_mag_path: Output path for the magnitude NIfTI file.
-    :param out_vel_path: Output path for the velocity NIfTI file.
+    
+    Parameters:
+    mag_4d (np.ndarray): Magnitude 4D array.
+    vel_5d (np.ndarray): Velocity 5D array.
+    A (np.ndarray): Affine transformation matrix.
+    out_mag_path (str): Output path for the magnitude NIfTI file.
+    out_vel_path (str): Output path for the velocity NIfTI file.
     """
+    # Create and save the NIfTI files for magnitude and velocity data
     mag_nii = nib.Nifti1Image(mag_4d, A)
     vel_nii = nib.Nifti1Image(vel_5d, A)
 
@@ -164,6 +215,15 @@ def reconstruct_4dflow_nifti(mag_4d, vel_5d, A, out_mag_path, out_vel_path):
     print("NIfTI files saved to", out_mag_path, "and", out_vel_path)
 
 def generate_gif_from_nifti(nifti_path, output_path, n_jobs=-1):
+    """
+    Generate a GIF from a NIfTI file.
+    
+    Parameters:
+    nifti_path (str): Path to the NIfTI file.
+    output_path (str): Output path for the GIF file.
+    n_jobs (int): Number of parallel jobs. Use -1 for all available cores.
+    """
+    # Generate a GIF from a NIfTI file
     nifti_img = nib.load(nifti_path)
     data = nifti_img.get_fdata()
     num_slices = data.shape[2]
@@ -189,6 +249,16 @@ def generate_gif_from_nifti(nifti_path, output_path, n_jobs=-1):
     print(f"GIF saved to {output_path}")
 
 def generate_gif_from_nifti_vel(nifti_path, output_path, vel_dir=2, n_jobs=-1):
+    """
+    Generate a GIF from a NIfTI file for velocity data.
+    
+    Parameters:
+    nifti_path (str): Path to the NIfTI file.
+    output_path (str): Output path for the GIF file.
+    vel_dir (int): Velocity direction (default is 2).
+    n_jobs (int): Number of parallel jobs. Use -1 for all available cores.
+    """
+    # Generate a GIF from a NIfTI file for velocity data
     nifti_img = nib.load(nifti_path)
     data = nifti_img.get_fdata()
     num_slices = data.shape[2]
@@ -214,12 +284,31 @@ def generate_gif_from_nifti_vel(nifti_path, output_path, vel_dir=2, n_jobs=-1):
     print(f"GIF saved to {output_path}")
 
 def compute_speed_from_velocity_nifti(nifti_path):
+    """
+    Compute the speed magnitude from velocity NIfTI data.
+    
+    Parameters:
+    nifti_path (str): Path to the NIfTI file.
+    
+    Returns:
+    np.ndarray: Speed magnitude array.
+    """
+    # Compute the speed magnitude from velocity NIfTI data
     nifti_img = nib.load(nifti_path)
     data = nifti_img.get_fdata()
     speed = np.sqrt(np.sum(data ** 2, axis=-1))  # Compute speed magnitude
     return speed
 
 def generate_gif_from_velocity_nifti(nifti_path, output_path, n_jobs=-1):
+    """
+    Generate a GIF from velocity NIfTI data.
+    
+    Parameters:
+    nifti_path (str): Path to the NIfTI file.
+    output_path (str): Output path for the GIF file.
+    n_jobs (int): Number of parallel jobs. Use -1 for all available cores.
+    """
+    # Generate a GIF from velocity NIfTI data
     nifti_img = nib.load(nifti_path)
     data = nifti_img.get_fdata()
     speed_data = np.sqrt(np.sum(data ** 2, axis=-1))  # Compute speed magnitude
@@ -312,32 +401,36 @@ def check_orientation_and_flip(df, mag_4d, vel_5d, corrected_vel_5d):
     return mag_4d, vel_5d, corrected_vel_5d
 
 if __name__ == "__main__":
+    # Define paths for input and output data
     dicom_folder = '/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/unzipped_images/Ackoram'
     output_folder = '/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/patients/Ackoram'
     velocity_path = '/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/velocities/Ackoram.npy'
     csv_path = os.path.join(output_folder, "flow_info.csv")
+    
+    # Load the 4D flow dataframe
     df_4dflow = load_4dflow_dataframe(csv_path)
 
-    ## create and fill the arrays with the 4d flow data pulled from the dicom files
+    # Create and fill the arrays with the 4D flow data pulled from the DICOM files
     mag_4d, vel_5d = create_volume_arrays(df_4dflow)
-    # Use fill_volume_arrays with parallelization (set n_jobs to the number of workers)
     fill_volume_arrays(df_4dflow, mag_4d, vel_5d, n_jobs=-1)
 
-    ## create a correctly orriented array filled with the corrected velocity data downloaded from tempus
-
-    # Define dimensions for padding correction
+    # Create a correctly oriented array filled with the corrected velocity data downloaded from Tempus
     RDIM, CDIM, SDIM, TDIM = vel_5d.shape[:4]
     corrected_vel_5d = process_corrected_velocity_npy(velocity_path, RDIM, CDIM, SDIM, TDIM)
 
+    # Build the affine transformation matrix
     Nslices = len(df_4dflow['slice_index'].unique())
     A, Ainv, rowres, colres, sthick, slice_spacing = build_affine(df_4dflow, Nslices)
 
-    # save the 4D flow data as NIfTI files
+    # Save the 4D flow data as NIfTI files
     mag_path = os.path.join(output_folder, 'mag_4dflow.nii.gz')
     vel_path = os.path.join(output_folder, 'vel-uncorrected_4dflow.nii.gz')
     reconstruct_4dflow_nifti(mag_4d, vel_5d, A, mag_path, vel_path)
     corrected_vel_nifti_path = os.path.join(output_folder, 'vel_corrected_4dflow.nii.gz')
     reconstruct_corrected_velocity_nifti(corrected_vel_5d, A, corrected_vel_nifti_path)
+
+    # Check orientation and flip if necessary
+    mag_4d, vel_5d, corrected_vel_5d = check_orientation_and_flip(df_4dflow, mag_4d, vel_5d, corrected_vel_5d)
 
     # Generate GIFs from the NIfTI files
     gif_path = os.path.join(output_folder, 'mag.gif')
@@ -352,6 +445,7 @@ if __name__ == "__main__":
     gif_path = os.path.join(output_folder, 'vel-corrected.gif')
     generate_gif_from_velocity_nifti(corrected_vel_nifti_path, gif_path)
 
+    # Print affine matrix details
     print("Affine matrix A:\n", A)
     print("Inverse affine matrix Ainv:\n", Ainv)
     print("Row resolution:", rowres)
