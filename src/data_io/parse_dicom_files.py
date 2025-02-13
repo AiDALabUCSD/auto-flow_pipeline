@@ -6,12 +6,26 @@ from tqdm import tqdm
 from multiprocessing import Pool, cpu_count
 import numpy as np
 
-def is_dicom_file(file_path):
+# Custom logging function
+def log_message(message, log_file):
+    """
+    Logs a message to both the console and a log file.
+    
+    Parameters:
+    message (str): The message to log.
+    log_file (str): The path to the log file.
+    """
+    # tqdm.write(message)
+    with open(log_file, 'a') as f:
+        f.write(message + '\n')
+
+def is_dicom_file(file_path, log_file):
     """
     Checks if a file is a DICOM file by reading its content.
     
     Parameters:
     file_path (str): Path to the file.
+    log_file (str): Path to the log file.
     
     Returns:
     bool: True if the file is a DICOM file, False otherwise.
@@ -22,15 +36,16 @@ def is_dicom_file(file_path):
             magic = file.read(4)
             return magic == b'DICM'
     except Exception as e:
-        print(f"Error reading {file_path}: {e}")
+        log_message(f"Error reading {file_path}: {e}", log_file)
         return False
 
-def parse_dicom_file(dicom_path):
+def parse_dicom_file(dicom_path, log_file):
     """
     Parses a single DICOM file to extract relevant information.
 
     Parameters:
         dicom_path (str): Path to the DICOM file.
+        log_file (str): Path to the log file.
 
     Returns:
         dict: A dictionary containing the extracted information.
@@ -58,21 +73,23 @@ def parse_dicom_file(dicom_path):
         }
         return info
     except Exception as e:
-        print(f"Error reading {dicom_path}: {e}")
+        log_message(f"Error reading {dicom_path}: {e}", log_file)
         return None
 
 def process_file(args):
-    dicom_path, = args
-    if is_dicom_file(dicom_path) or dicom_path.endswith('.dcm'):
-        return parse_dicom_file(dicom_path)
+    dicom_path, log_file = args
+    if is_dicom_file(dicom_path, log_file) or dicom_path.endswith('.dcm'):
+        return parse_dicom_file(dicom_path, log_file)
     return None
 
-def parse_dicom_folder(folder_path):
+def parse_dicom_folder(folder_path, log_file, position=1):
     """
     Iterates through all DICOM files in a specified folder and extracts relevant information.
     
     Parameters:
     folder_path (str): Path to the folder containing DICOM files.
+    log_file (str): Path to the log file.
+    position (int): Position of the progress bar for nested progress bars.
     
     Returns:
     pd.DataFrame: A DataFrame containing the extracted information from all DICOM files.
@@ -83,10 +100,10 @@ def parse_dicom_folder(folder_path):
     for root, _, files in os.walk(folder_path):
         for file in files:
             dicom_path = os.path.join(root, file)
-            file_paths.append((dicom_path,))
+            file_paths.append((dicom_path, log_file))
 
     with Pool(cpu_count()) as pool:
-        for dicom_info in tqdm(pool.imap_unordered(process_file, file_paths), total=len(file_paths), desc="Processing DICOM files"):
+        for dicom_info in tqdm(pool.imap_unordered(process_file, file_paths), total=len(file_paths), desc="Processing DICOM files", position=position):
             if dicom_info:
                 dicom_info_list.append(dicom_info)
 
@@ -106,32 +123,6 @@ def save_dicom_info(dicom_info_df, output_folder):
     dicom_info_df.to_csv(csv_path, index=False)
     dicom_info_df.to_pickle(pickle_path)
 
-# def remove_test_series_by_fewest_rows(df_4d):
-#     """
-#     Removes the single 'test' series that has fewer rows than all real series.
-#     Assumes exactly one SeriesInstanceUID has fewer rows than the others.
-#     """
-#     # 1. For each SeriesInstanceUID, count how many rows exist
-#     counts = df_4d.groupby('SeriesInstanceUID').size().sort_values()
-    
-#     # 2. The first in sorted order is the smallest count
-#     test_uid = counts.index[0]
-#     min_count = counts.iloc[0]
-    
-#     # Optionally we can double-check we only have 1 that is smaller:
-#     # for example, ensure that the second entry is strictly greater.
-#     if len(counts) > 1 and counts.iloc[1] == min_count:
-#         print("Warning: There's more than one SeriesInstanceUID with the same (minimum) row count.")
-#         print("No changes made. Returning original DataFrame.")
-#         return df_4d
-    
-#     print(f"Identified test series: {test_uid}, with {min_count} rows. Removing it from DataFrame.")
-    
-#     # 3. Drop all rows belonging to that SeriesInstanceUID
-#     df_clean = df_4d[df_4d['SeriesInstanceUID'] != test_uid].copy()
-    
-#     return df_clean
-
 def identify_4_real_series(df):
     """
     Identify exactly 4 SeriesInstanceUIDs that:
@@ -144,7 +135,7 @@ def identify_4_real_series(df):
 
     # 1. Build a dictionary or "signature" for each SeriesInstanceUID:
     #    - The single Tag_0043_1030 for that series,
-    #    - The mapping of (InstanceNumber -> ImagePositionPatient).
+    #    - The mapping of (InstanceNumber -> unique ImagePositionPatient).
 
     series_map = {}  # { series_uid: (flow_tag, dict_of_inst2pos) }
 
@@ -204,8 +195,7 @@ def identify_4_real_series(df):
     df_filtered = df[df['SeriesInstanceUID'].isin(final_uids)].copy()
     return df_filtered
 
-
-def filter_and_save_4d_flow(data_path):
+def filter_and_save_4d_flow(data_path, log_file):
     """
     Loads a CSV or pickle file, keeps only 4D flow rows, 
     adds time_index and slice_index columns based on InstanceNumber,
@@ -225,6 +215,7 @@ def filter_and_save_4d_flow(data_path):
 
     Args:
         data_path (str): Path to the CSV or pickle file with DICOM info.
+        log_file (str): Path to the log file.
     """
     # 1. Load the DICOM info DataFrame
     _, ext = os.path.splitext(data_path)
@@ -257,7 +248,7 @@ def filter_and_save_4d_flow(data_path):
         TDIM = tempnpy.shape[0]
         vel_shape = tempnpy.shape
     else:
-        print(f"Warning: {vel_filepath} not found. Using TDIM=1 and no shape info.")
+        log_message(f"Warning: {vel_filepath} not found. Using TDIM=1 and no shape info.", log_file)
 
     # 5. Compute time_index and slice_index from InstanceNumber (subtracting 1 if 1-based)
     if 'InstanceNumber' in df_4d.columns:
@@ -282,10 +273,10 @@ def filter_and_save_4d_flow(data_path):
     df_4d.to_csv(csv_out, index=False)
     df_4d.to_pickle(pkl_out)
 
-    # print(f"4D flow (with time_index, slice_index, vel_npy_shape) saved to:\n{csv_out}\n{pkl_out}")
+    # log_message(f"4D flow (with time_index, slice_index, vel_npy_shape) saved to:\n{csv_out}\n{pkl_out}", log_file)
     return df_4d
 
-def parse_patient(pid, dicom_folder_path, output_folder_path, overwrite=False):
+def parse_patient(pid, dicom_folder_path, output_folder_path, overwrite=False, position=1):
     """
     Main function to parse DICOM files for a specific patient and save the extracted information to both a CSV file and a pickle file.
     
@@ -294,10 +285,12 @@ def parse_patient(pid, dicom_folder_path, output_folder_path, overwrite=False):
     dicom_folder_path (str): General path to the folder containing DICOM files.
     output_folder_path (str): Folder to save the CSV and pickle files.
     overwrite (bool): Flag to control whether to overwrite existing patient folder.
+    position (int): Position of the progress bar for nested progress bars.
     """
     # Construct the full path to the patient's DICOM folder
     patient_dicom_folder = os.path.join(dicom_folder_path, pid)
     patient_output_folder = os.path.join(output_folder_path, pid)
+    log_file = os.path.join(patient_output_folder, 'process_log.txt')
     
     # Check if the patient folder exists
     if os.path.exists(patient_output_folder):
@@ -305,21 +298,21 @@ def parse_patient(pid, dicom_folder_path, output_folder_path, overwrite=False):
             shutil.rmtree(patient_output_folder)
             os.makedirs(patient_output_folder)
         else:
-            print(f"Folder {patient_output_folder} already exists. Skipping...")
+            log_message(f"Folder {patient_output_folder} already exists. Skipping...", log_file)
             return
     else:
         os.makedirs(patient_output_folder)
     
     # Parse and save full DICOM info
-    dicom_info_df = parse_dicom_folder(patient_dicom_folder)
+    dicom_info_df = parse_dicom_folder(patient_dicom_folder, log_file, position=position)
     save_dicom_info(dicom_info_df, patient_output_folder)
-    print(f"DICOM information saved to {patient_output_folder} as dicom_info.csv/pkl")
+    log_message(f"DICOM information saved to {patient_output_folder} as dicom_info.csv/pkl", log_file)
 
     # 4D flow filtering step
     dicom_info_csv = os.path.join(patient_output_folder, "dicom_info.csv")
-    filter_and_save_4d_flow(dicom_info_csv)
+    filter_and_save_4d_flow(dicom_info_csv, log_file)
 
-    print(f"4D flow information saved to {patient_output_folder} as flow_info.csv/pkl")
+    log_message(f"4D flow information saved to {patient_output_folder} as flow_info.csv/pkl", log_file)
 
 # Example usage
 if __name__ == "__main__":
