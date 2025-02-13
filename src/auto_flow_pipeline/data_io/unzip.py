@@ -107,8 +107,7 @@ def unzip_folder(folder_path, output_dir, overwrite=False):
     for archive_name, status in status_dict.items():
         tqdm.write(f"{archive_name}: [{status}]")
 
-# Example usage
-if __name__ == "__main__":
+def main():
     # Define the paths for the input folder containing archive files and the output folder
     zip_folder = '/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/zipped_images/'
     unzipped_folder = '/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/unzipped_images/'
@@ -120,3 +119,7 @@ if __name__ == "__main__":
 
     # Extract all archive files in the input folder to the output folder
     unzip_folder(zip_folder, unzipped_folder, overwrite)
+
+# Example usage
+if __name__ == "__main__":
+    main()

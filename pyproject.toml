@@ -13,3 +13,5 @@ where = ["src"]
 
 [project.scripts]
 parse_all_dicoms = "auto_flow_pipeline.drivers.parse_all_dicoms_driver:main"
+prune = "auto_flow_pipeline.data_io.prune:main"
+unzip = "auto_flow_pipeline.data_io.unzip:main"

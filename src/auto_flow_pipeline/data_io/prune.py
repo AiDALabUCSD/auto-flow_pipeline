@@ -59,11 +59,14 @@ def prune_folders(reference_folder, target_folders):
                 for future in futures:
                     future.result()
 
-# Example usage
-if __name__ == "__main__":
+def main():
     reference_folder = '/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/zipped_images/'
     target_folders = [
         '/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/unzipped_images/',
         '/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/velocities/'
     ]
     prune_folders(reference_folder, target_folders)
+
+# Example usage
+if __name__ == "__main__":
+    main()
