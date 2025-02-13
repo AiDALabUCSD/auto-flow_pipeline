@@ -21,7 +21,10 @@ def parse_all_dicoms(dicom_folder_path, output_folder_path, overwrite=False):
             tqdm.write(f"Parsing patient: {patient_id}")
             parse_patient(patient_id, dicom_folder_path, output_folder_path, overwrite, position=i+1)
 
-if __name__ == "__main__":
+def main():
     dicom_folder_path = '/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/unzipped_images'
     output_folder_path = '/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/patients'
     parse_all_dicoms(dicom_folder_path, output_folder_path, overwrite=False)
+
+if __name__ == "__main__":
+    main()
