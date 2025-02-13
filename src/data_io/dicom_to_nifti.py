@@ -344,10 +344,10 @@ def find_difference_between_slices(df):
     Returns:
     float: The difference between the ImagePositionPatient values in the z-direction.
     """
-    # Finds the difference between ImagePositionPatient in the second slice and the first slice
-    first_slice = df[(df['slice_index'] == 0) & (df['time_index'] == 0)]['ImagePositionPatient'].iloc[0]
-    second_slice = df[(df['slice_index'] == 1) & (df['time_index'] == 0)]['ImagePositionPatient'].iloc[0]
-    difference = np.array(second_slice) - np.array(first_slice)
+    # Convert the string representation of the list to an actual list and then to a numpy array
+    first_slice = np.array(eval(df[(df['slice_index'] == 0) & (df['time_index'] == 0)]['ImagePositionPatient'].iloc[0]), dtype=float)
+    second_slice = np.array(eval(df[(df['slice_index'] == 1) & (df['time_index'] == 0)]['ImagePositionPatient'].iloc[0]), dtype=float)
+    difference = second_slice - first_slice
     return difference[2]  # Assuming the difference in the z-direction is of interest
 
 def find_cross_product_orientation(df):
@@ -360,8 +360,8 @@ def find_cross_product_orientation(df):
     Returns:
     float: The cross product of the row and column orientations in the z-direction.
     """
-    # Finds the cross product between the row orientation and the column orientation in ImageOrientationPatient
-    first_slice_orientation = df[(df['slice_index'] == 0) & (df['time_index'] == 0)]['ImageOrientationPatient'].iloc[0]
+    # Convert the string representation of the list to an actual list and then to a numpy array
+    first_slice_orientation = np.array(eval(df[(df['slice_index'] == 0) & (df['time_index'] == 0)]['ImageOrientationPatient'].iloc[0]), dtype=float)
     row_orientation = np.array(first_slice_orientation[:3])
     col_orientation = np.array(first_slice_orientation[3:])
     cross_product = np.cross(row_orientation, col_orientation)
@@ -380,19 +380,22 @@ def check_orientation_and_flip(df, mag_4d, vel_5d, corrected_vel_5d):
     Returns:
     tuple: The potentially flipped mag_4d, vel_5d, and corrected_vel_5d arrays.
     """
-    # Checks whether the image and the velocity numpy arrays need to be flipped based on the orientation
+    # Check whether the image and the velocity numpy arrays need to be flipped based on the orientation
     difference = find_difference_between_slices(df)
     cross_product = find_cross_product_orientation(df)
     
     if difference > 0 and cross_product < 0:
         # Flip the magnitude array along the slice direction
+        print("Flipping magnitude array along the slice direction")
         mag_4d = np.flip(mag_4d, axis=2)
     elif difference < 0 and cross_product > 0:
         # Flip the velocity arrays along the slice direction
+        print("Flipping velocity arrays along the slice direction")
         vel_5d = np.flip(vel_5d, axis=2)
         corrected_vel_5d = np.flip(corrected_vel_5d, axis=2)
     elif difference > 0 and cross_product > 0:
         # Flip both the magnitude and velocity arrays along the slice direction
+        print("Flipping both magnitude and velocity arrays along the slice direction")
         mag_4d = np.flip(mag_4d, axis=2)
         vel_5d = np.flip(vel_5d, axis=2)
         corrected_vel_5d = np.flip(corrected_vel_5d, axis=2)
@@ -422,16 +425,16 @@ if __name__ == "__main__":
     Nslices = len(df_4dflow['slice_index'].unique())
     A, Ainv, rowres, colres, sthick, slice_spacing = build_affine(df_4dflow, Nslices)
 
+    # Check orientation and flip if necessary
+    mag_4d, vel_5d, corrected_vel_5d = check_orientation_and_flip(df_4dflow, mag_4d, vel_5d, corrected_vel_5d)
+
     # Save the 4D flow data as NIfTI files
     mag_path = os.path.join(output_folder, 'mag_4dflow.nii.gz')
     vel_path = os.path.join(output_folder, 'vel-uncorrected_4dflow.nii.gz')
     reconstruct_4dflow_nifti(mag_4d, vel_5d, A, mag_path, vel_path)
     corrected_vel_nifti_path = os.path.join(output_folder, 'vel_corrected_4dflow.nii.gz')
     reconstruct_corrected_velocity_nifti(corrected_vel_5d, A, corrected_vel_nifti_path)
-
-    # Check orientation and flip if necessary
-    mag_4d, vel_5d, corrected_vel_5d = check_orientation_and_flip(df_4dflow, mag_4d, vel_5d, corrected_vel_5d)
-
+    
     # Generate GIFs from the NIfTI files
     gif_path = os.path.join(output_folder, 'mag.gif')
     generate_gif_from_nifti(mag_path, gif_path)
