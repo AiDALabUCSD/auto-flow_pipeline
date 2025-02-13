@@ -8,9 +8,5 @@ version = "0.1.0"
 description = "This is the pipeline to use AutoFlow..."
 dependencies = []
 
-# This defines the console script "unzipper"
-[project.scripts]
-unzipper = "src.data_io.unzip:main"
-
 [tool.setuptools.packages.find]
 where = ["src"]
