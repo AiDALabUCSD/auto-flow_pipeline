@@ -279,21 +279,26 @@ def parse_patient(pid, dicom_folder_path, output_folder_path, overwrite=False, p
     # Construct the full path to the patient's DICOM folder
     patient_dicom_folder = os.path.join(dicom_folder_path, pid)
     patient_output_folder = os.path.join(output_folder_path, pid)
-    log_file = os.path.join(patient_output_folder, 'process_log.txt')
-    
-    # Setup logger
-    logger = setup_logger(pid, patient_output_folder)
 
-    # Check if the patient folder exists
+    # If the patient folder already exists and we're overwriting, remove it
     if os.path.exists(patient_output_folder):
         if overwrite:
             shutil.rmtree(patient_output_folder)
-            os.makedirs(patient_output_folder)
+            os.makedirs(patient_output_folder, exist_ok=True)
         else:
-            logger.info(f"Folder {patient_output_folder} already exists. Skipping...")
+            # If we're not overwriting, just log and return
+            # (or do something else, as desired)
+            temp_logger = setup_logger(
+                patient_name=pid,
+                output_folder=output_folder_path
+            )
+            temp_logger.info(f"Folder {patient_output_folder} already exists. Skipping...")
             return
     else:
-        os.makedirs(patient_output_folder)
+        os.makedirs(patient_output_folder, exist_ok=True)
+
+    logger = setup_logger(pid, output_folder_path)
+    logger.info(f"Starting parsing patient: {pid}")
     
     # Parse and save full DICOM info
     dicom_info_df = parse_dicom_folder(patient_dicom_folder, logger, position=position)
@@ -305,6 +310,7 @@ def parse_patient(pid, dicom_folder_path, output_folder_path, overwrite=False, p
     filter_and_save_4d_flow(dicom_info_csv, logger)
 
     logger.info(f"4D flow information saved to {patient_output_folder} as flow_info.csv/pkl")
+    logger.info(f"Finished parsing patient: {pid}")
 
 # Example usage
 if __name__ == "__main__":
