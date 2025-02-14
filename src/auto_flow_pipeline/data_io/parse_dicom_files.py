@@ -5,16 +5,16 @@ import pydicom
 from tqdm import tqdm
 from multiprocessing import Pool, cpu_count
 import numpy as np
-from auto_flow_pipeline.data_io.logging import log_message
+from auto_flow_pipeline.data_io.logging_setup import setup_logger
 
 
-def is_dicom_file(file_path, log_file):
+def is_dicom_file(file_path, logger):
     """
     Checks if a file is a DICOM file by reading its content.
     
     Parameters:
     file_path (str): Path to the file.
-    log_file (str): Path to the log file.
+    logger (logging.Logger): Logger instance.
     
     Returns:
     bool: True if the file is a DICOM file, False otherwise.
@@ -25,16 +25,16 @@ def is_dicom_file(file_path, log_file):
             magic = file.read(4)
             return magic == b'DICM'
     except Exception as e:
-        log_message(f"Error reading {file_path}: {e}", log_file)
+        logger.error(f"Error reading {file_path}: {e}")
         return False
 
-def parse_dicom_file(dicom_path, log_file):
+def parse_dicom_file(dicom_path, logger):
     """
     Parses a single DICOM file to extract relevant information.
 
     Parameters:
         dicom_path (str): Path to the DICOM file.
-        log_file (str): Path to the log file.
+        logger (logging.Logger): Logger instance.
 
     Returns:
         dict: A dictionary containing the extracted information.
@@ -62,22 +62,22 @@ def parse_dicom_file(dicom_path, log_file):
         }
         return info
     except Exception as e:
-        log_message(f"Error reading {dicom_path}: {e}", log_file)
+        logger.error(f"Error reading {dicom_path}: {e}")
         return None
 
 def process_file(args):
-    dicom_path, log_file = args
-    if is_dicom_file(dicom_path, log_file) or dicom_path.endswith('.dcm'):
-        return parse_dicom_file(dicom_path, log_file)
+    dicom_path, logger = args
+    if is_dicom_file(dicom_path, logger) or dicom_path.endswith('.dcm'):
+        return parse_dicom_file(dicom_path, logger)
     return None
 
-def parse_dicom_folder(folder_path, log_file, position=1):
+def parse_dicom_folder(folder_path, logger, position=1):
     """
     Iterates through all DICOM files in a specified folder and extracts relevant information.
     
     Parameters:
     folder_path (str): Path to the folder containing DICOM files.
-    log_file (str): Path to the log file.
+    logger (logging.Logger): Logger instance.
     position (int): Position of the progress bar for nested progress bars.
     
     Returns:
@@ -89,7 +89,7 @@ def parse_dicom_folder(folder_path, log_file, position=1):
     for root, _, files in os.walk(folder_path):
         for file in files:
             dicom_path = os.path.join(root, file)
-            file_paths.append((dicom_path, log_file))
+            file_paths.append((dicom_path, logger))
 
     with Pool(cpu_count()) as pool:
         for dicom_info in tqdm(pool.imap_unordered(process_file, file_paths), total=len(file_paths), desc="Processing DICOM files", position=position):
@@ -184,7 +184,7 @@ def identify_4_real_series(df):
     df_filtered = df[df['SeriesInstanceUID'].isin(final_uids)].copy()
     return df_filtered
 
-def filter_and_save_4d_flow(data_path, log_file):
+def filter_and_save_4d_flow(data_path, logger):
     """
     Loads a CSV or pickle file, keeps only 4D flow rows, 
     adds time_index and slice_index columns based on InstanceNumber,
@@ -204,7 +204,7 @@ def filter_and_save_4d_flow(data_path, log_file):
 
     Args:
         data_path (str): Path to the CSV or pickle file with DICOM info.
-        log_file (str): Path to the log file.
+        logger (logging.Logger): Logger instance.
     """
     # 1. Load the DICOM info DataFrame
     _, ext = os.path.splitext(data_path)
@@ -237,7 +237,7 @@ def filter_and_save_4d_flow(data_path, log_file):
         TDIM = tempnpy.shape[0]
         vel_shape = tempnpy.shape
     else:
-        log_message(f"Warning: {vel_filepath} not found. Using TDIM=1 and no shape info.", log_file)
+        logger.warning(f"{vel_filepath} not found. Using TDIM=1 and no shape info.")
 
     # 5. Compute time_index and slice_index from InstanceNumber (subtracting 1 if 1-based)
     if 'InstanceNumber' in df_4d.columns:
@@ -262,7 +262,7 @@ def filter_and_save_4d_flow(data_path, log_file):
     df_4d.to_csv(csv_out, index=False)
     df_4d.to_pickle(pkl_out)
 
-    # log_message(f"4D flow (with time_index, slice_index, vel_npy_shape) saved to:\n{csv_out}\n{pkl_out}", log_file)
+    logger.info(f"4D flow (with time_index, slice_index, vel_npy_shape) saved to:\n{csv_out}\n{pkl_out}")
     return df_4d
 
 def parse_patient(pid, dicom_folder_path, output_folder_path, overwrite=False, position=1):
@@ -281,27 +281,30 @@ def parse_patient(pid, dicom_folder_path, output_folder_path, overwrite=False, p
     patient_output_folder = os.path.join(output_folder_path, pid)
     log_file = os.path.join(patient_output_folder, 'process_log.txt')
     
+    # Setup logger
+    logger = setup_logger(pid, patient_output_folder)
+
     # Check if the patient folder exists
     if os.path.exists(patient_output_folder):
         if overwrite:
             shutil.rmtree(patient_output_folder)
             os.makedirs(patient_output_folder)
         else:
-            log_message(f"Folder {patient_output_folder} already exists. Skipping...", log_file)
+            logger.info(f"Folder {patient_output_folder} already exists. Skipping...")
             return
     else:
         os.makedirs(patient_output_folder)
     
     # Parse and save full DICOM info
-    dicom_info_df = parse_dicom_folder(patient_dicom_folder, log_file, position=position)
+    dicom_info_df = parse_dicom_folder(patient_dicom_folder, logger, position=position)
     save_dicom_info(dicom_info_df, patient_output_folder)
-    log_message(f"DICOM information saved to {patient_output_folder} as dicom_info.csv/pkl", log_file)
+    logger.info(f"DICOM information saved to {patient_output_folder} as dicom_info.csv/pkl")
 
     # 4D flow filtering step
     dicom_info_csv = os.path.join(patient_output_folder, "dicom_info.csv")
-    filter_and_save_4d_flow(dicom_info_csv, log_file)
+    filter_and_save_4d_flow(dicom_info_csv, logger)
 
-    log_message(f"4D flow information saved to {patient_output_folder} as flow_info.csv/pkl", log_file)
+    logger.info(f"4D flow information saved to {patient_output_folder} as flow_info.csv/pkl")
 
 # Example usage
 if __name__ == "__main__":

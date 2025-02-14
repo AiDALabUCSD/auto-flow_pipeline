@@ -1,6 +1,7 @@
 import os
 from tqdm import tqdm
 from auto_flow_pipeline.data_io.parse_dicom_files import parse_patient
+from auto_flow_pipeline.data_io.logging_setup import setup_logger
 
 def parse_all_dicoms(dicom_folder_path, output_folder_path, overwrite=False):
     """
@@ -18,7 +19,8 @@ def parse_all_dicoms(dicom_folder_path, output_folder_path, overwrite=False):
     for i, patient_id in enumerate(tqdm(patient_dirs, desc="Parsing all patients", position=0)):
         patient_path = os.path.join(dicom_folder_path, patient_id)
         if os.path.isdir(patient_path):
-            tqdm.write(f"Parsing patient: {patient_id}")
+            logger = setup_logger(patient_id, output_folder_path)
+            logger.info(f"Parsing patient: {patient_id}")
             parse_patient(patient_id, dicom_folder_path, output_folder_path, overwrite, position=i+1)
 
 def main():

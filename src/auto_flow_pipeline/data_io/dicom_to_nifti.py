@@ -5,6 +5,8 @@ import pydicom
 import nibabel as nib
 import matplotlib.pyplot as plt
 import imageio
+import logging
+from auto_flow_pipeline.data_io.logging_setup import setup_logger
 
 # Add optional imports for parallelization and progress bars
 from joblib import Parallel, delayed
@@ -63,7 +65,7 @@ def process_corrected_velocity_npy(npy_path, RDIM, CDIM, SDIM, TDIM):
     
     return ecc_holder
 
-def reconstruct_corrected_velocity_nifti(vel_5d, A, output_path):
+def reconstruct_corrected_velocity_nifti(vel_5d, A, output_path, logger):
     """
     Create and save the NIfTI file for corrected velocity data.
     
@@ -71,11 +73,12 @@ def reconstruct_corrected_velocity_nifti(vel_5d, A, output_path):
     vel_5d (np.ndarray): Corrected velocity 5D array.
     A (np.ndarray): Affine transformation matrix.
     output_path (str): Output path for the corrected velocity NIfTI file.
+    logger (logging.Logger): Logger instance.
     """
     # Create and save the NIfTI file for corrected velocity data
     corrected_vel_nii = nib.Nifti1Image(vel_5d, A)
     nib.save(corrected_vel_nii, output_path)
-    print(f"Corrected velocity NIfTI saved to {output_path}")
+    logger.info(f"Corrected velocity NIfTI saved to {output_path}")
 
 def create_volume_arrays(df, shape_column='vel_npy_shape'):
     """
@@ -193,7 +196,7 @@ def build_affine(flow_info_df, Nslices):
 
     return A, Ainv, rowres, colres, sthick, slice_spacing
 
-def reconstruct_4dflow_nifti(mag_4d, vel_5d, A, out_mag_path, out_vel_path):
+def reconstruct_4dflow_nifti(mag_4d, vel_5d, A, out_mag_path, out_vel_path, logger):
     """
     Create and save the NIfTI files for magnitude and velocity data.
     
@@ -203,6 +206,7 @@ def reconstruct_4dflow_nifti(mag_4d, vel_5d, A, out_mag_path, out_vel_path):
     A (np.ndarray): Affine transformation matrix.
     out_mag_path (str): Output path for the magnitude NIfTI file.
     out_vel_path (str): Output path for the velocity NIfTI file.
+    logger (logging.Logger): Logger instance.
     """
     # Create and save the NIfTI files for magnitude and velocity data
     mag_nii = nib.Nifti1Image(mag_4d, A)
@@ -212,15 +216,16 @@ def reconstruct_4dflow_nifti(mag_4d, vel_5d, A, out_mag_path, out_vel_path):
     nib.save(mag_nii, out_mag_path)
     nib.save(vel_nii, out_vel_path)
 
-    print("NIfTI files saved to", out_mag_path, "and", out_vel_path)
+    logger.info("NIfTI files saved to %s and %s", out_mag_path, out_vel_path)
 
-def generate_gif_from_nifti(nifti_path, output_path, n_jobs=-1):
+def generate_gif_from_nifti(nifti_path, output_path, logger, n_jobs=-1):
     """
     Generate a GIF from a NIfTI file.
     
     Parameters:
     nifti_path (str): Path to the NIfTI file.
     output_path (str): Output path for the GIF file.
+    logger (logging.Logger): Logger instance.
     n_jobs (int): Number of parallel jobs. Use -1 for all available cores.
     """
     # Generate a GIF from a NIfTI file
@@ -246,15 +251,16 @@ def generate_gif_from_nifti(nifti_path, output_path, n_jobs=-1):
     images = Parallel(n_jobs=n_jobs)(delayed(process_slice)(i) for i in tqdm(range(num_slices), desc="Generating GIF"))
     
     imageio.mimsave(output_path, images, duration=0.1)  # Save as GIF
-    print(f"GIF saved to {output_path}")
+    logger.info(f"GIF saved to {output_path}")
 
-def generate_gif_from_nifti_vel(nifti_path, output_path, vel_dir=2, n_jobs=-1):
+def generate_gif_from_nifti_vel(nifti_path, output_path, logger, vel_dir=2, n_jobs=-1):
     """
     Generate a GIF from a NIfTI file for velocity data.
     
     Parameters:
     nifti_path (str): Path to the NIfTI file.
     output_path (str): Output path for the GIF file.
+    logger (logging.Logger): Logger instance.
     vel_dir (int): Velocity direction (default is 2).
     n_jobs (int): Number of parallel jobs. Use -1 for all available cores.
     """
@@ -281,7 +287,7 @@ def generate_gif_from_nifti_vel(nifti_path, output_path, vel_dir=2, n_jobs=-1):
     images = Parallel(n_jobs=n_jobs)(delayed(process_slice)(i) for i in tqdm(range(num_slices), desc="Generating GIF"))
     
     imageio.mimsave(output_path, images, duration=0.1)  # Save as GIF
-    print(f"GIF saved to {output_path}")
+    logger.info(f"GIF saved to {output_path}")
 
 def compute_speed_from_velocity_nifti(nifti_path):
     """
@@ -299,13 +305,14 @@ def compute_speed_from_velocity_nifti(nifti_path):
     speed = np.sqrt(np.sum(data ** 2, axis=-1))  # Compute speed magnitude
     return speed
 
-def generate_gif_from_velocity_nifti(nifti_path, output_path, n_jobs=-1):
+def generate_gif_from_velocity_nifti(nifti_path, output_path, logger, n_jobs=-1):
     """
     Generate a GIF from velocity NIfTI data.
     
     Parameters:
     nifti_path (str): Path to the NIfTI file.
     output_path (str): Output path for the GIF file.
+    logger (logging.Logger): Logger instance.
     n_jobs (int): Number of parallel jobs. Use -1 for all available cores.
     """
     # Generate a GIF from velocity NIfTI data
@@ -332,7 +339,7 @@ def generate_gif_from_velocity_nifti(nifti_path, output_path, n_jobs=-1):
     images = Parallel(n_jobs=n_jobs)(delayed(process_slice)(i) for i in tqdm(range(num_slices), desc="Generating GIF"))
     
     imageio.mimsave(output_path, images, duration=0.1)  # Save as GIF
-    print(f"GIF saved to {output_path}")
+    logger.info(f"GIF saved to {output_path}")
 
 def find_difference_between_slices(df):
     """
@@ -367,7 +374,7 @@ def find_cross_product_orientation(df):
     cross_product = np.cross(row_orientation, col_orientation)
     return cross_product[2]  # Assuming the cross product in the z-direction is of interest
 
-def check_orientation_and_flip(df, mag_4d, vel_5d, corrected_vel_5d):
+def check_orientation_and_flip(df, mag_4d, vel_5d, corrected_vel_5d, logger):
     """
     Check whether the image and the velocity numpy arrays need to be flipped based on the orientation.
     
@@ -376,6 +383,7 @@ def check_orientation_and_flip(df, mag_4d, vel_5d, corrected_vel_5d):
     mag_4d (np.ndarray): Magnitude 4D array.
     vel_5d (np.ndarray): Velocity 5D array.
     corrected_vel_5d (np.ndarray): Corrected velocity 5D array.
+    logger (logging.Logger): Logger instance.
     
     Returns:
     tuple: The potentially flipped mag_4d, vel_5d, and corrected_vel_5d arrays.
@@ -386,16 +394,16 @@ def check_orientation_and_flip(df, mag_4d, vel_5d, corrected_vel_5d):
     
     if difference > 0 and cross_product < 0:
         # Flip the magnitude array along the slice direction
-        print("Flipping magnitude array along the slice direction")
+        logger.info("Flipping magnitude array along the slice direction")
         mag_4d = np.flip(mag_4d, axis=2)
     elif difference < 0 and cross_product > 0:
         # Flip the velocity arrays along the slice direction
-        print("Flipping velocity arrays along the slice direction")
+        logger.info("Flipping velocity arrays along the slice direction")
         vel_5d = np.flip(vel_5d, axis=2)
         corrected_vel_5d = np.flip(corrected_vel_5d, axis=2)
     elif difference > 0 and cross_product > 0:
         # Flip both the magnitude and velocity arrays along the slice direction
-        print("Flipping both magnitude and velocity arrays along the slice direction")
+        logger.info("Flipping both magnitude and velocity arrays along the slice direction")
         mag_4d = np.flip(mag_4d, axis=2)
         vel_5d = np.flip(vel_5d, axis=2)
         corrected_vel_5d = np.flip(corrected_vel_5d, axis=2)
@@ -410,6 +418,9 @@ if __name__ == "__main__":
     velocity_path = '/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/velocities/Ackoram.npy'
     csv_path = os.path.join(output_folder, "flow_info.csv")
     
+    # Setup logger
+    logger = setup_logger(output_folder, '4dflow_processing.log')
+
     # Load the 4D flow dataframe
     df_4dflow = load_4dflow_dataframe(csv_path)
 
@@ -426,32 +437,32 @@ if __name__ == "__main__":
     A, Ainv, rowres, colres, sthick, slice_spacing = build_affine(df_4dflow, Nslices)
 
     # Check orientation and flip if necessary
-    mag_4d, vel_5d, corrected_vel_5d = check_orientation_and_flip(df_4dflow, mag_4d, vel_5d, corrected_vel_5d)
+    mag_4d, vel_5d, corrected_vel_5d = check_orientation_and_flip(df_4dflow, mag_4d, vel_5d, corrected_vel_5d, logger)
 
     # Save the 4D flow data as NIfTI files
     mag_path = os.path.join(output_folder, 'mag_4dflow.nii.gz')
     vel_path = os.path.join(output_folder, 'vel-uncorrected_4dflow.nii.gz')
-    reconstruct_4dflow_nifti(mag_4d, vel_5d, A, mag_path, vel_path)
+    reconstruct_4dflow_nifti(mag_4d, vel_5d, A, mag_path, vel_path, logger)
     corrected_vel_nifti_path = os.path.join(output_folder, 'vel_corrected_4dflow.nii.gz')
-    reconstruct_corrected_velocity_nifti(corrected_vel_5d, A, corrected_vel_nifti_path)
+    reconstruct_corrected_velocity_nifti(corrected_vel_5d, A, corrected_vel_nifti_path, logger)
     
     # Generate GIFs from the NIfTI files
     gif_path = os.path.join(output_folder, 'mag.gif')
-    generate_gif_from_nifti(mag_path, gif_path)
+    generate_gif_from_nifti(mag_path, gif_path, logger)
 
     gif_path = os.path.join(output_folder, 'vel-uncorrected.gif')
-    generate_gif_from_velocity_nifti(vel_path, gif_path)
+    generate_gif_from_velocity_nifti(vel_path, gif_path, logger)
 
     gif_path = os.path.join(output_folder, 'zvel-uncorrected.gif')
-    generate_gif_from_nifti_vel(vel_path, gif_path)
+    generate_gif_from_nifti_vel(vel_path, gif_path, logger)
 
     gif_path = os.path.join(output_folder, 'vel-corrected.gif')
-    generate_gif_from_velocity_nifti(corrected_vel_nifti_path, gif_path)
+    generate_gif_from_velocity_nifti(corrected_vel_nifti_path, gif_path, logger)
 
     # Print affine matrix details
-    print("Affine matrix A:\n", A)
-    print("Inverse affine matrix Ainv:\n", Ainv)
-    print("Row resolution:", rowres)
-    print("Column resolution:", colres)
-    print("Slice thickness:", sthick)
-    print("Slice spacing:", slice_spacing)
+    logger.info("Affine matrix A:\n%s", A)
+    logger.info("Inverse affine matrix Ainv:\n%s", Ainv)
+    logger.info("Row resolution: %s", rowres)
+    logger.info("Column resolution: %s", colres)
+    logger.info("Slice thickness: %s", sthick)
+    logger.info("Slice spacing: %s", slice_spacing)
