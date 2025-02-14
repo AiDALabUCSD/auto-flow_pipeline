@@ -292,15 +292,24 @@ def check_orientation_and_flip(df, mag_4d, vel_5d, corrected_vel_5d, logger):
     
     return mag_4d, vel_5d, corrected_vel_5d
 
-if __name__ == "__main__":
-    # Define paths for input and output data
-    dicom_folder = '/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/unzipped_images/Ackoram'
-    output_folder = '/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/patients/Ackoram'
-    velocity_path = '/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/velocities/Ackoram.npy'
+def patient_to_nifti(pid, base_dicom_folder, base_output_folder, base_velocity_folder):
+    """
+    Perform the operations to convert DICOM to NIfTI for a single patient.
+    
+    Parameters:
+    pid (str): Patient ID.
+    base_dicom_folder (str): Base folder path for DICOM files.
+    base_output_folder (str): Base folder path for output files.
+    base_velocity_folder (str): Base folder path for velocity files.
+    """
+    # Construct full paths
+    dicom_folder = os.path.join(base_dicom_folder, pid)
+    output_folder = os.path.join(base_output_folder, pid)
+    velocity_path = os.path.join(base_velocity_folder, f"{pid}.npy")
     csv_path = os.path.join(output_folder, "flow_info.csv")
     
     # Setup logger
-    logger = setup_logger(output_folder, '4dflow_processing.log')
+    logger = setup_logger(pid, base_output_folder)
 
     # Load the 4D flow dataframe
     df_4dflow = load_4dflow_dataframe(csv_path)
@@ -323,9 +332,9 @@ if __name__ == "__main__":
     # Save the 4D flow data as NIfTI files
     mag_path = os.path.join(output_folder, 'mag_4dflow.nii.gz')
     vel_path = os.path.join(output_folder, 'vel-uncorrected_4dflow.nii.gz')
+    cor_vel_path = os.path.join(output_folder, 'vel-corrected_4dflow.nii.gz')
     reconstruct_4dflow_nifti(mag_4d, vel_5d, A, mag_path, vel_path, logger)
-    corrected_vel_nifti_path = os.path.join(output_folder, 'vel_corrected_4dflow.nii.gz')
-    reconstruct_corrected_velocity_nifti(corrected_vel_5d, A, corrected_vel_nifti_path, logger)
+    reconstruct_corrected_velocity_nifti(corrected_vel_5d, A, cor_vel_path, logger)
     
     # Generate GIFs from the NIfTI files
     gif_path = os.path.join(output_folder, 'mag.gif')
@@ -338,7 +347,7 @@ if __name__ == "__main__":
     generate_gif_from_nifti_vel(vel_path, gif_path, logger)
 
     gif_path = os.path.join(output_folder, 'vel-corrected.gif')
-    generate_gif_from_velocity_nifti(corrected_vel_nifti_path, gif_path, logger)
+    generate_gif_from_velocity_nifti(cor_vel_path, gif_path, logger)
 
     # Print affine matrix details
     logger.info("Affine matrix A:\n%s", A)
@@ -347,3 +356,13 @@ if __name__ == "__main__":
     logger.info("Column resolution: %s", colres)
     logger.info("Slice thickness: %s", sthick)
     logger.info("Slice spacing: %s", slice_spacing)
+
+if __name__ == "__main__":
+    # Define base paths for input and output data
+    base_dicom_folder = '/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/unzipped_images'
+    base_output_folder = '/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/patients'
+    base_velocity_folder = '/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/velocities'
+    pid = 'Ackoram'
+    
+    # Process the patient
+    patient_to_nifti(pid, base_dicom_folder, base_output_folder, base_velocity_folder)
