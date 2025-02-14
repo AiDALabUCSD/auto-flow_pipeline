@@ -98,21 +98,24 @@ def parse_dicom_folder(folder_path, logger, position=1):
 
     return pd.DataFrame(dicom_info_list)
 
-def save_dicom_info(dicom_info_df, output_folder):
+def save_dicom_info(dicom_info_df, output_folder, logger):
     """
     Saves the DICOM information DataFrame to both a CSV file and a pickle file.
     
     Parameters:
     dicom_info_df (pd.DataFrame): DataFrame containing the DICOM information.
     output_folder (str): Folder to save the CSV and pickle files.
+    logger (logging.Logger): Logger instance.
     """
     csv_path = os.path.join(output_folder, 'dicom_info.csv')
     pickle_path = os.path.join(output_folder, 'dicom_info.pkl')
     
     dicom_info_df.to_csv(csv_path, index=False)
     dicom_info_df.to_pickle(pickle_path)
+    
+    logger.info(f"DICOM information saved to {csv_path} and {pickle_path}")
 
-def identify_4_real_series(df):
+def identify_4_real_series(df, logger):
     """
     Identify exactly 4 SeriesInstanceUIDs that:
       - Each have a single Tag_0043_1030 value,
@@ -121,6 +124,7 @@ def identify_4_real_series(df):
 
     Returns a filtered DataFrame containing only those 4 series.
     """
+    logger.info("Identifying 4 real series from the DataFrame")
 
     # 1. Build a dictionary or "signature" for each SeriesInstanceUID:
     #    - The single Tag_0043_1030 for that series,
@@ -182,6 +186,7 @@ def identify_4_real_series(df):
 
     # 4. Now filter the original DataFrame to only these "real" 4 series
     df_filtered = df[df['SeriesInstanceUID'].isin(final_uids)].copy()
+    logger.info(f"Identified {len(final_uids)} real series")
     return df_filtered
 
 def filter_and_save_4d_flow(data_path, logger):
@@ -207,6 +212,7 @@ def filter_and_save_4d_flow(data_path, logger):
         logger (logging.Logger): Logger instance.
     """
     # 1. Load the DICOM info DataFrame
+    logger.info(f"Loading DICOM info from {data_path}")
     _, ext = os.path.splitext(data_path)
     if ext.lower() in ('.pkl', '.pickle'):
         df = pd.read_pickle(data_path)
@@ -214,6 +220,7 @@ def filter_and_save_4d_flow(data_path, logger):
         df = pd.read_csv(data_path)
 
     # 2. Filter for 4D flow
+    logger.info("Filtering for 4D flow")
     mask_4d_flow = (
         (df['Tag_0019_10B3'].astype(float) > 1) |
         ((df['Tag_0043_1030'].astype(float) > 1) & (df['Tag_0043_1030'].astype(float) < 6))
@@ -233,9 +240,11 @@ def filter_and_save_4d_flow(data_path, logger):
     vel_shape = None
 
     if os.path.exists(vel_filepath):
+        logger.info(f"Loading velocity numpy file from {vel_filepath}")
         tempnpy = np.load(vel_filepath)
         TDIM = tempnpy.shape[0]
         vel_shape = tempnpy.shape
+        logger.info(f"TDIM: {TDIM}, Shape: {vel_shape}")
     else:
         logger.warning(f"{vel_filepath} not found. Using TDIM=1 and no shape info.")
 
@@ -249,7 +258,7 @@ def filter_and_save_4d_flow(data_path, logger):
         df_4d['slice_index'] = np.nan
 
     # 6. Remove extraneous images
-    df_4d = identify_4_real_series(df_4d)
+    df_4d = identify_4_real_series(df_4d, logger)
 
     # 7. Store the numpy shape in a new column
     df_4d['vel_npy_shape'] = str(vel_shape) if vel_shape is not None else "N/A"
@@ -298,11 +307,11 @@ def parse_patient(pid, dicom_folder_path, output_folder_path, overwrite=False, p
         os.makedirs(patient_output_folder, exist_ok=True)
 
     logger = setup_logger(pid, output_folder_path)
-    logger.info(f"Starting parsing patient: {pid}")
+    logger.info(f"Now parsing patient: {pid}")
     
     # Parse and save full DICOM info
     dicom_info_df = parse_dicom_folder(patient_dicom_folder, logger, position=position)
-    save_dicom_info(dicom_info_df, patient_output_folder)
+    save_dicom_info(dicom_info_df, patient_output_folder, logger)
     logger.info(f"DICOM information saved to {patient_output_folder} as dicom_info.csv/pkl")
 
     # 4D flow filtering step
