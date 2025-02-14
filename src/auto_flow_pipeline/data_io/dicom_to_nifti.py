@@ -16,31 +16,38 @@ from auto_flow_pipeline.visualization.dicom_to_nifti.generate_gifs import (
 from joblib import Parallel, delayed
 from tqdm import tqdm
 
-def load_4dflow_dataframe(path_to_csv_or_pickle):
+def load_4dflow_dataframe(path_to_csv_or_pickle, logger):
     """
     Load the dataframe from a CSV or pickle file.
     
     Parameters:
     path_to_csv_or_pickle (str): Path to the CSV or pickle file.
+    logger (logging.Logger): Logger instance.
     
     Returns:
     pd.DataFrame: Loaded and sorted dataframe.
     """
-    # Load the dataframe from a CSV or pickle file
-    _, ext = os.path.splitext(path_to_csv_or_pickle)
-    if ext.lower() == '.csv':
-        df = pd.read_csv(path_to_csv_or_pickle)
-    elif ext.lower() in ['.pkl', '.pickle']:
-        df = pd.read_pickle(path_to_csv_or_pickle)
-    else:
-        raise ValueError("Unsupported file extension.")
-    
-    # Sort for consistent slice/time ordering
-    df.sort_values(by=['time_index', 'slice_index'], inplace=True)
-    df.reset_index(drop=True, inplace=True)
-    return df
+    try:
+        logger.info(f"Loading dataframe from {path_to_csv_or_pickle}")
+        # Load the dataframe from a CSV or pickle file
+        _, ext = os.path.splitext(path_to_csv_or_pickle)
+        if ext.lower() == '.csv':
+            df = pd.read_csv(path_to_csv_or_pickle)
+        elif ext.lower() in ['.pkl', '.pickle']:
+            df = pd.read_pickle(path_to_csv_or_pickle)
+        else:
+            raise ValueError("Unsupported file extension.")
+        
+        # Sort for consistent slice/time ordering
+        df.sort_values(by=['time_index', 'slice_index'], inplace=True)
+        df.reset_index(drop=True, inplace=True)
+        logger.info("Dataframe loaded and sorted successfully")
+        return df
+    except Exception as e:
+        logger.error(f"Error loading dataframe: {e}")
+        raise
 
-def process_corrected_velocity_npy(npy_path, RDIM, CDIM, SDIM, TDIM):
+def process_corrected_velocity_npy(npy_path, RDIM, CDIM, SDIM, TDIM, logger):
     """
     Load and process the corrected velocity numpy array.
     
@@ -50,24 +57,31 @@ def process_corrected_velocity_npy(npy_path, RDIM, CDIM, SDIM, TDIM):
     CDIM (int): Column dimension.
     SDIM (int): Slice dimension.
     TDIM (int): Time dimension.
+    logger (logging.Logger): Logger instance.
     
     Returns:
     np.ndarray: Processed and padded velocity array.
     """
-    # Load and process the corrected velocity numpy array
-    tempnpy = np.load(npy_path)
-    tempnpy = np.swapaxes(tempnpy, 0, 3)  # Swap (time, component, slice, row, col)
-    tempnpy = np.swapaxes(tempnpy, 1, 4)  # Now (row, col, slice, time, component)
-    tempnpy[..., 2] = -tempnpy[..., 2]  # Negate SI component
-    
-    # Ensure correct shape with padding
-    ecc_holder = np.zeros((RDIM, CDIM, SDIM, TDIM, 3), dtype=np.int16)
-    RDIM_npy, CDIM_npy = tempnpy.shape[0], tempnpy.shape[1]
-    Rspacer = (RDIM - RDIM_npy) // 2
-    Cspacer = (CDIM - CDIM_npy) // 2
-    ecc_holder[Rspacer:Rspacer+RDIM_npy, Cspacer: Cspacer+CDIM_npy, :, :, :] = np.copy(tempnpy)
-    
-    return ecc_holder
+    try:
+        logger.info(f"Loading corrected velocity numpy array from {npy_path}")
+        # Load and process the corrected velocity numpy array
+        tempnpy = np.load(npy_path)
+        tempnpy = np.swapaxes(tempnpy, 0, 3)  # Swap (time, component, slice, row, col)
+        tempnpy = np.swapaxes(tempnpy, 1, 4)  # Now (row, col, slice, time, component)
+        tempnpy[..., 2] = -tempnpy[..., 2]  # Negate SI component
+        
+        # Ensure correct shape with padding
+        ecc_holder = np.zeros((RDIM, CDIM, SDIM, TDIM, 3), dtype=np.int16)
+        RDIM_npy, CDIM_npy = tempnpy.shape[0], tempnpy.shape[1]
+        Rspacer = (RDIM - RDIM_npy) // 2
+        Cspacer = (CDIM - CDIM_npy) // 2
+        ecc_holder[Rspacer:Rspacer+RDIM_npy, Cspacer: Cspacer+CDIM_npy, :, :, :] = np.copy(tempnpy)
+        
+        logger.info("Corrected velocity numpy array processed successfully")
+        return ecc_holder
+    except Exception as e:
+        logger.error(f"Error processing corrected velocity numpy array: {e}")
+        raise
 
 def reconstruct_corrected_velocity_nifti(vel_5d, A, output_path, logger):
     """
@@ -79,10 +93,15 @@ def reconstruct_corrected_velocity_nifti(vel_5d, A, output_path, logger):
     output_path (str): Output path for the corrected velocity NIfTI file.
     logger (logging.Logger): Logger instance.
     """
-    # Create and save the NIfTI file for corrected velocity data
-    corrected_vel_nii = nib.Nifti1Image(vel_5d, A)
-    nib.save(corrected_vel_nii, output_path)
-    logger.info(f"Corrected velocity NIfTI saved to {output_path}")
+    try:
+        logger.info(f"Creating NIfTI file for corrected velocity data at {output_path}")
+        # Create and save the NIfTI file for corrected velocity data
+        corrected_vel_nii = nib.Nifti1Image(vel_5d, A)
+        nib.save(corrected_vel_nii, output_path)
+        logger.info(f"Corrected velocity NIfTI saved to {output_path}")
+    except Exception as e:
+        logger.error(f"Error creating NIfTI file for corrected velocity data: {e}")
+        raise
 
 def create_volume_arrays(df, shape_column='vel_npy_shape'):
     """
@@ -302,60 +321,66 @@ def patient_to_nifti(pid, base_dicom_folder, base_output_folder, base_velocity_f
     base_output_folder (str): Base folder path for output files.
     base_velocity_folder (str): Base folder path for velocity files.
     """
-    # Construct full paths
-    dicom_folder = os.path.join(base_dicom_folder, pid)
-    output_folder = os.path.join(base_output_folder, pid)
-    velocity_path = os.path.join(base_velocity_folder, f"{pid}.npy")
-    csv_path = os.path.join(output_folder, "flow_info.csv")
-    
-    # Setup logger
-    logger = setup_logger(pid, base_output_folder)
+    try:
+        logger.info(f"Starting conversion for patient {pid}")
+        # Construct full paths
+        dicom_folder = os.path.join(base_dicom_folder, pid)
+        output_folder = os.path.join(base_output_folder, pid)
+        velocity_path = os.path.join(base_velocity_folder, f"{pid}.npy")
+        csv_path = os.path.join(output_folder, "flow_info.csv")
+        
+        # Setup logger
+        logger = setup_logger(pid, base_output_folder)
 
-    # Load the 4D flow dataframe
-    df_4dflow = load_4dflow_dataframe(csv_path)
+        # Load the 4D flow dataframe
+        df_4dflow = load_4dflow_dataframe(csv_path, logger)
 
-    # Create and fill the arrays with the 4D flow data pulled from the DICOM files
-    mag_4d, vel_5d = create_volume_arrays(df_4dflow)
-    fill_volume_arrays(df_4dflow, mag_4d, vel_5d, n_jobs=-1)
+        # Create and fill the arrays with the 4D flow data pulled from the DICOM files
+        mag_4d, vel_5d = create_volume_arrays(df_4dflow)
+        fill_volume_arrays(df_4dflow, mag_4d, vel_5d, n_jobs=-1)
 
-    # Create a correctly oriented array filled with the corrected velocity data downloaded from Tempus
-    RDIM, CDIM, SDIM, TDIM = vel_5d.shape[:4]
-    corrected_vel_5d = process_corrected_velocity_npy(velocity_path, RDIM, CDIM, SDIM, TDIM)
+        # Create a correctly oriented array filled with the corrected velocity data downloaded from Tempus
+        RDIM, CDIM, SDIM, TDIM = vel_5d.shape[:4]
+        corrected_vel_5d = process_corrected_velocity_npy(velocity_path, RDIM, CDIM, SDIM, TDIM, logger)
 
-    # Build the affine transformation matrix
-    Nslices = len(df_4dflow['slice_index'].unique())
-    A, Ainv, rowres, colres, sthick, slice_spacing = build_affine(df_4dflow, Nslices)
+        # Build the affine transformation matrix
+        Nslices = len(df_4dflow['slice_index'].unique())
+        A, Ainv, rowres, colres, sthick, slice_spacing = build_affine(df_4dflow, Nslices)
 
-    # Check orientation and flip if necessary
-    mag_4d, vel_5d, corrected_vel_5d = check_orientation_and_flip(df_4dflow, mag_4d, vel_5d, corrected_vel_5d, logger)
+        # Check orientation and flip if necessary
+        mag_4d, vel_5d, corrected_vel_5d = check_orientation_and_flip(df_4dflow, mag_4d, vel_5d, corrected_vel_5d, logger)
 
-    # Save the 4D flow data as NIfTI files
-    mag_path = os.path.join(output_folder, 'mag_4dflow.nii.gz')
-    vel_path = os.path.join(output_folder, 'vel-uncorrected_4dflow.nii.gz')
-    cor_vel_path = os.path.join(output_folder, 'vel-corrected_4dflow.nii.gz')
-    reconstruct_4dflow_nifti(mag_4d, vel_5d, A, mag_path, vel_path, logger)
-    reconstruct_corrected_velocity_nifti(corrected_vel_5d, A, cor_vel_path, logger)
-    
-    # Generate GIFs from the NIfTI files
-    gif_path = os.path.join(output_folder, 'mag.gif')
-    generate_gif_from_nifti(mag_path, gif_path, logger)
+        # Save the 4D flow data as NIfTI files
+        mag_path = os.path.join(output_folder, 'mag_4dflow.nii.gz')
+        vel_path = os.path.join(output_folder, 'vel-uncorrected_4dflow.nii.gz')
+        cor_vel_path = os.path.join(output_folder, 'vel-corrected_4dflow.nii.gz')
+        reconstruct_4dflow_nifti(mag_4d, vel_5d, A, mag_path, vel_path, logger)
+        reconstruct_corrected_velocity_nifti(corrected_vel_5d, A, cor_vel_path, logger)
+        
+        # Generate GIFs from the NIfTI files
+        gif_path = os.path.join(output_folder, 'mag.gif')
+        generate_gif_from_nifti(mag_path, gif_path, logger)
 
-    gif_path = os.path.join(output_folder, 'vel-uncorrected.gif')
-    generate_gif_from_velocity_nifti(vel_path, gif_path, logger)
+        gif_path = os.path.join(output_folder, 'vel-uncorrected.gif')
+        generate_gif_from_velocity_nifti(vel_path, gif_path, logger)
 
-    gif_path = os.path.join(output_folder, 'zvel-uncorrected.gif')
-    generate_gif_from_nifti_vel(vel_path, gif_path, logger)
+        gif_path = os.path.join(output_folder, 'zvel-uncorrected.gif')
+        generate_gif_from_nifti_vel(vel_path, gif_path, logger)
 
-    gif_path = os.path.join(output_folder, 'vel-corrected.gif')
-    generate_gif_from_velocity_nifti(cor_vel_path, gif_path, logger)
+        gif_path = os.path.join(output_folder, 'vel-corrected.gif')
+        generate_gif_from_velocity_nifti(cor_vel_path, gif_path, logger)
 
-    # Print affine matrix details
-    logger.info("Affine matrix A:\n%s", A)
-    logger.info("Inverse affine matrix Ainv:\n%s", Ainv)
-    logger.info("Row resolution: %s", rowres)
-    logger.info("Column resolution: %s", colres)
-    logger.info("Slice thickness: %s", sthick)
-    logger.info("Slice spacing: %s", slice_spacing)
+        # Print affine matrix details
+        logger.info("Affine matrix A:\n%s", A)
+        logger.info("Inverse affine matrix Ainv:\n%s", Ainv)
+        logger.info("Row resolution: %s", rowres)
+        logger.info("Column resolution: %s", colres)
+        logger.info("Slice thickness: %s", sthick)
+        logger.info("Slice spacing: %s", slice_spacing)
+        logger.info(f"Finished conversion for patient {pid}")
+    except Exception as e:
+        logger.error(f"Error during conversion for patient {pid}: {e}")
+        raise
 
 if __name__ == "__main__":
     # Define base paths for input and output data
