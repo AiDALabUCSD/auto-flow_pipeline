@@ -15,4 +15,5 @@ where = ["src"]
 unzip = "auto_flow_pipeline.drivers.unzip_driver:main"
 prune = "auto_flow_pipeline.drivers.prune_driver:main"
 parse_all_dicoms = "auto_flow_pipeline.drivers.parse_all_dicoms_driver:main"
-generate_base_niftis = "auto_flow_pipeline.drivers.dicom_to_nifti_drivers:main"
+generate_base_niftis = "auto_flow_pipeline.drivers.dicom_to_nifti_driver:main"
+
