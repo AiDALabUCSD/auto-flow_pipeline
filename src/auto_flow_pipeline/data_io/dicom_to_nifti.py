@@ -41,7 +41,7 @@ def load_4dflow_dataframe(path_to_csv_or_pickle, logger):
         # Sort for consistent slice/time ordering
         df.sort_values(by=['time_index', 'slice_index'], inplace=True)
         df.reset_index(drop=True, inplace=True)
-        logger.info("Dataframe loaded and sorted successfully")
+        logger.info("Dataframe loaded successfully")
         return df
     except Exception as e:
         logger.error(f"Error loading dataframe: {e}")
@@ -321,6 +321,10 @@ def patient_to_nifti(pid, base_dicom_folder, base_output_folder, base_velocity_f
     base_output_folder (str): Base folder path for output files.
     base_velocity_folder (str): Base folder path for velocity files.
     """
+
+    # Setup logger
+    logger = setup_logger(pid, base_output_folder)
+    
     try:
         logger.info(f"Starting conversion for patient {pid}")
         # Construct full paths
@@ -328,9 +332,6 @@ def patient_to_nifti(pid, base_dicom_folder, base_output_folder, base_velocity_f
         output_folder = os.path.join(base_output_folder, pid)
         velocity_path = os.path.join(base_velocity_folder, f"{pid}.npy")
         csv_path = os.path.join(output_folder, "flow_info.csv")
-        
-        # Setup logger
-        logger = setup_logger(pid, base_output_folder)
 
         # Load the 4D flow dataframe
         df_4dflow = load_4dflow_dataframe(csv_path, logger)
