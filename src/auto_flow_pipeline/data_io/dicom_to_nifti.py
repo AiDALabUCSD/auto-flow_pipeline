@@ -311,7 +311,7 @@ def check_orientation_and_flip(df, mag_4d, vel_5d, corrected_vel_5d, logger):
     
     return mag_4d, vel_5d, corrected_vel_5d
 
-def patient_to_nifti(pid, base_dicom_folder, base_output_folder, base_velocity_folder):
+def patient_to_nifti(pid, base_dicom_folder, base_output_folder, base_velocity_folder, overwrite=False):
     """
     Perform the operations to convert DICOM to NIfTI for a single patient.
     
@@ -320,8 +320,8 @@ def patient_to_nifti(pid, base_dicom_folder, base_output_folder, base_velocity_f
     base_dicom_folder (str): Base folder path for DICOM files.
     base_output_folder (str): Base folder path for output files.
     base_velocity_folder (str): Base folder path for velocity files.
+    overwrite (bool): Whether to overwrite existing NIfTI files. Default is False.
     """
-
     # Setup logger
     logger = setup_logger(pid, base_output_folder)
     
@@ -332,6 +332,15 @@ def patient_to_nifti(pid, base_dicom_folder, base_output_folder, base_velocity_f
         output_folder = os.path.join(base_output_folder, pid)
         velocity_path = os.path.join(base_velocity_folder, f"{pid}.npy")
         csv_path = os.path.join(output_folder, "flow_info.csv")
+
+        # Check if NIfTI files already exist and handle overwrite option
+        mag_path = os.path.join(output_folder, 'mag_4dflow.nii.gz')
+        vel_path = os.path.join(output_folder, 'vel-uncorrected_4dflow.nii.gz')
+        cor_vel_path = os.path.join(output_folder, 'vel-corrected_4dflow.nii.gz')
+        
+        if not overwrite and all(os.path.exists(path) for path in [mag_path, vel_path, cor_vel_path]):
+            logger.info("NIfTI files already exist and overwrite is set to False. Skipping conversion.")
+            return
 
         # Load the 4D flow dataframe
         df_4dflow = load_4dflow_dataframe(csv_path, logger)
@@ -352,9 +361,6 @@ def patient_to_nifti(pid, base_dicom_folder, base_output_folder, base_velocity_f
         mag_4d, vel_5d, corrected_vel_5d = check_orientation_and_flip(df_4dflow, mag_4d, vel_5d, corrected_vel_5d, logger)
 
         # Save the 4D flow data as NIfTI files
-        mag_path = os.path.join(output_folder, 'mag_4dflow.nii.gz')
-        vel_path = os.path.join(output_folder, 'vel-uncorrected_4dflow.nii.gz')
-        cor_vel_path = os.path.join(output_folder, 'vel-corrected_4dflow.nii.gz')
         reconstruct_4dflow_nifti(mag_4d, vel_5d, A, mag_path, vel_path, logger)
         reconstruct_corrected_velocity_nifti(corrected_vel_5d, A, cor_vel_path, logger)
         
@@ -391,4 +397,4 @@ if __name__ == "__main__":
     pid = 'Ackoram'
     
     # Process the patient
-    patient_to_nifti(pid, base_dicom_folder, base_output_folder, base_velocity_folder)
+    patient_to_nifti(pid, base_dicom_folder, base_output_folder, base_velocity_folder, overwrite=False)
