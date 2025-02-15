@@ -1,7 +1,7 @@
 import os
 from tqdm import tqdm
 from auto_flow_pipeline.data_io.parse_dicom_files import parse_patient
-from auto_flow_pipeline.data_io.logging_setup import setup_logger
+from auto_flow_pipeline import main_logger
 
 def parse_all_dicoms(dicom_folder_path, output_folder_path, overwrite=False, main_logger=None):
     """
@@ -52,7 +52,6 @@ def main():
     overwrite = False
     
     # Setup main logger
-    main_logger = setup_logger('ge_testing', '/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/', console_log=True)
     main_logger.info("parse_dicom_files_driver.py is about to commence.")
     main_logger.info(f"Preferences: dicom_folder_path={dicom_folder_path}, output_folder_path={output_folder_path}, overwrite={overwrite}")
     

@@ -2,7 +2,7 @@ import os
 import logging
 from tqdm import tqdm
 from auto_flow_pipeline.data_io.dicom_to_nifti import patient_to_nifti
-from auto_flow_pipeline.data_io.logging_setup import setup_logger
+from auto_flow_pipeline import main_logger
 
 def process_all_patients(dicom_base_folder, output_base_folder, velocity_base_folder, max_patients=-1, overwrite=False, main_logger=None):
     """
@@ -59,7 +59,6 @@ def main():
     overwrite=False
     
     # Setup main logger
-    main_logger = setup_logger('ge_testing', '/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/', console_log=True)
     main_logger.info("dicom_to_nifti_driver.py is about to commence.")
     main_logger.info(f"Preferences: dicom_base_folder={dicom_base_folder}, output_base_folder={output_base_folder}, velocity_base_folder={velocity_base_folder}, max_patients={max_patients}, overwrite={overwrite}")
     
