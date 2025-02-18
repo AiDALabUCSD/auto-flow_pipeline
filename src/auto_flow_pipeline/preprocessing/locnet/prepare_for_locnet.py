@@ -3,70 +3,95 @@ import nibabel as nib
 import numpy as np
 from scipy.ndimage import zoom
 from skimage import exposure
+from auto_flow_pipeline.data_io.logging_setup import setup_logger
 
-def load_nifti(nifti_path: str) -> np.ndarray:
+def load_nifti(nifti_path: str, logger) -> np.ndarray:
     """
     Loads a NIfTI file and returns the 4D data array.
     """
-    nifti_img = nib.load(nifti_path)
-    data = nifti_img.get_fdata(dtype=np.float32)
-    return data
+    try:
+        logger.info(f"Loading NIfTI file from {nifti_path}")
+        nifti_img = nib.load(nifti_path)
+        data = nifti_img.get_fdata(dtype=np.float32)
+        return data
+    except Exception as e:
+        logger.error(f"Error loading NIfTI file from {nifti_path}: {e}")
+        raise
 
 def downsample_4d_volume(data: np.ndarray,
-                         target_dims=(192, 192, 64, 20)) -> np.ndarray:
+                         target_dims=(192, 192, 64, 20), logger=None) -> np.ndarray:
     """
     Downsamples a 4D volume (R, C, S, T) to target_dims using a simple zoom.
     The last dimension (time) is preserved if it already matches.
     """
-    rfactor = target_dims[0] / data.shape[0]
-    cfactor = target_dims[1] / data.shape[1]
-    sfactor = target_dims[2] / data.shape[2]
-    # Time dimension factor is 1 if target and data match; otherwise adjust as needed
-    tfactor = target_dims[3] / data.shape[3] if data.shape[3] != target_dims[3] else 1
+    try:
+        logger.info(f"Downsampling 4D volume to target dimensions {target_dims}")
+        rfactor = target_dims[0] / data.shape[0]
+        cfactor = target_dims[1] / data.shape[1]
+        sfactor = target_dims[2] / data.shape[2]
+        tfactor = target_dims[3] / data.shape[3] if data.shape[3] != target_dims[3] else 1
 
-    return zoom(data, (rfactor, cfactor, sfactor, tfactor), order=1)
+        return zoom(data, (rfactor, cfactor, sfactor, tfactor), order=1)
+    except Exception as e:
+        logger.error(f"Error downsampling 4D volume: {e}")
+        raise
 
-def reorder_4d_volume(data: np.ndarray) -> np.ndarray:
+def reorder_4d_volume(data: np.ndarray, logger=None) -> np.ndarray:
     """
     Reorders data from shape (R, C, S, T) to (T, R, C, S, 1).
     """
-    R, C, S, T = data.shape
-    out = np.zeros((T, R, C, S, 1), dtype=data.dtype)
-    for t in range(T):
-        out[t, ..., 0] = data[..., t]
-    return out
+    try:
+        logger.info("Reordering 4D volume")
+        R, C, S, T = data.shape
+        out = np.zeros((T, R, C, S, 1), dtype=data.dtype)
+        for t in range(T):
+            out[t, ..., 0] = data[..., t]
+        return out
+    except Exception as e:
+        logger.error(f"Error reordering 4D volume: {e}")
+        raise
 
-def min_max_normalize_4d(data: np.ndarray) -> np.ndarray:
+def min_max_normalize_4d(data: np.ndarray, logger=None) -> np.ndarray:
     """
     Performs min-max normalization on each time-slice individually.
     Assumes shape (T, R, C, S, 1).
     """
-    T, R, C, S, _ = data.shape
-    for t in range(T):
-        mini = np.amin(data[t])
-        maxi = np.amax(data[t])
-        if maxi > mini:
-            data[t] = (data[t] - mini) / (maxi - mini)
-        else:
-            data[t] = 0
-    return data
+    try:
+        logger.info("Performing min-max normalization on 4D volume")
+        T, R, C, S, _ = data.shape
+        for t in range(T):
+            mini = np.amin(data[t])
+            maxi = np.amax(data[t])
+            if maxi > mini:
+                data[t] = (data[t] - mini) / (maxi - mini)
+            else:
+                data[t] = 0
+        return data
+    except Exception as e:
+        logger.error(f"Error performing min-max normalization: {e}")
+        raise
 
-def percentile_rescale(data: np.ndarray, p_lower=5, p_upper=95) -> np.ndarray:
+def percentile_rescale(data: np.ndarray, p_lower=5, p_upper=95, logger=None) -> np.ndarray:
     """
     Rescales intensities to the [p_lower, p_upper] percentile range
     for each time-slice. Assumes shape (T, R, C, S, 1).
     """
-    T = data.shape[0]
-    for t in range(T):
-        p_low_val = np.percentile(data[t], p_lower)
-        p_high_val = np.percentile(data[t], p_upper)
-        data[t] = exposure.rescale_intensity(
-            data[t],
-            in_range=(p_low_val, p_high_val)
-        )
-    return data
+    try:
+        logger.info(f"Rescaling intensities to the [{p_lower}, {p_upper}] percentile range")
+        T = data.shape[0]
+        for t in range(T):
+            p_low_val = np.percentile(data[t], p_lower)
+            p_high_val = np.percentile(data[t], p_upper)
+            data[t] = exposure.rescale_intensity(
+                data[t],
+                in_range=(p_low_val, p_high_val)
+            )
+        return data
+    except Exception as e:
+        logger.error(f"Error rescaling intensities: {e}")
+        raise
 
-def preprocess_nifti_for_inference(nifti_path: str) -> np.ndarray:
+def preprocess_nifti_for_inference(patient_name: str, base_folderpath: str) -> np.ndarray:
     """
     Combines all steps:
       1. Load a 4D NIfTI file
@@ -76,9 +101,28 @@ def preprocess_nifti_for_inference(nifti_path: str) -> np.ndarray:
       5. Rescale intensities with [5,95] percentile range
     Returns the preprocessed data ready for inference.
     """
-    data_4d = load_nifti(nifti_path)
-    downsampled = downsample_4d_volume(data_4d, (192, 192, 64, data_4d.shape[3]))
-    reordered = reorder_4d_volume(downsampled)
-    normalized = min_max_normalize_4d(reordered)
-    rescaled = percentile_rescale(normalized, p_lower=5, p_upper=95)
-    return rescaled
+    logger = setup_logger(patient_name, base_folderpath)
+    nifti_path = f"{base_folderpath}/{patient_name}/mag_4dflow.nii.gz"
+    logger.info(f"Starting preprocessing for patient {patient_name}")
+
+    try:
+        data_4d = load_nifti(nifti_path, logger)
+        downsampled = downsample_4d_volume(data_4d, (192, 192, 64, data_4d.shape[3]), logger)
+        reordered = reorder_4d_volume(downsampled, logger)
+        normalized = min_max_normalize_4d(reordered, logger)
+        rescaled = percentile_rescale(normalized, p_lower=5, p_upper=95, logger=logger)
+        
+        logger.info(f"Completed preprocessing for patient {patient_name}")
+        return rescaled
+    except Exception as e:
+        logger.error(f"Failed to preprocess NIfTI file for patient {patient_name}: {e}")
+        raise
+
+def main():
+    patient_name = "Ackoram"
+    base_folderpath = "/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/patients"
+    preprocessed = preprocess_nifti_for_inference(patient_name, base_folderpath)
+    print(preprocessed.shape)
+
+if __name__ == "__main__":
+    main()
