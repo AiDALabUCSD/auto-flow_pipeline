@@ -4,6 +4,8 @@ import numpy as np
 from scipy.ndimage import zoom
 from skimage import exposure
 from auto_flow_pipeline.data_io.logging_setup import setup_logger
+import os
+from auto_flow_pipeline.visualization.preprocessing.locnet.prepare_for_locnet.generate_gifs import generate_gif_from_preprocessed_nifti
 
 def load_nifti(nifti_path: str, logger) -> np.ndarray:
     """
@@ -91,7 +93,7 @@ def percentile_rescale(data: np.ndarray, p_lower=5, p_upper=95, logger=None) -> 
         logger.error(f"Error rescaling intensities: {e}")
         raise
 
-def preprocess_nifti_for_inference(patient_name: str, base_folderpath: str) -> np.ndarray:
+def preprocess_nifti_for_inference(patient_name: str, base_folderpath: str, overwrite: bool = False) -> np.ndarray:
     """
     Combines all steps:
       1. Load a 4D NIfTI file
@@ -103,7 +105,12 @@ def preprocess_nifti_for_inference(patient_name: str, base_folderpath: str) -> n
     """
     logger = setup_logger(patient_name, base_folderpath)
     nifti_path = f"{base_folderpath}/{patient_name}/mag_4dflow.nii.gz"
+    output_path = f"{base_folderpath}/{patient_name}/mag_4dflow_for_locnet.nii.gz"
     logger.info(f"Starting preprocessing for patient {patient_name}")
+
+    if os.path.exists(output_path) and not overwrite:
+        logger.info(f"Preprocessed file already exists at {output_path}. Loading existing file.")
+        return load_nifti(output_path, logger)
 
     try:
         data_4d = load_nifti(nifti_path, logger)
@@ -112,6 +119,11 @@ def preprocess_nifti_for_inference(patient_name: str, base_folderpath: str) -> n
         normalized = min_max_normalize_4d(reordered, logger)
         rescaled = percentile_rescale(normalized, p_lower=5, p_upper=95, logger=logger)
         
+        # Save the preprocessed data
+        nifti_img = nib.Nifti1Image(rescaled, np.eye(4))
+        nib.save(nifti_img, output_path)
+        logger.info(f"Saved preprocessed NIfTI file to {output_path}")
+
         logger.info(f"Completed preprocessing for patient {patient_name}")
         return rescaled
     except Exception as e:
@@ -121,8 +133,13 @@ def preprocess_nifti_for_inference(patient_name: str, base_folderpath: str) -> n
 def main():
     patient_name = "Ackoram"
     base_folderpath = "/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/patients"
-    preprocessed = preprocess_nifti_for_inference(patient_name, base_folderpath)
+    preprocessed = preprocess_nifti_for_inference(patient_name, base_folderpath, overwrite=False)
     print(preprocessed.shape)
+    
+    # Generate GIF from preprocessed NIfTI
+    output_gif_path = f"{base_folderpath}/{patient_name}/mag_for_locnet.gif"
+    logger = setup_logger(patient_name, base_folderpath)
+    generate_gif_from_preprocessed_nifti(f"{base_folderpath}/{patient_name}/mag_4dflow_for_locnet.nii.gz", output_gif_path, logger)
 
 if __name__ == "__main__":
     main()
