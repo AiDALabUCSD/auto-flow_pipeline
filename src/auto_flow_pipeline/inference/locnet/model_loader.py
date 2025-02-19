@@ -1,6 +1,6 @@
 import os
 import tensorflow as tf
-from tensorflow.keras.models import load_model
+from tensorflow.keras.models import load_model # type: ignore
 
 # Import your custom loss function
 from .custom_loss import custom_mse
