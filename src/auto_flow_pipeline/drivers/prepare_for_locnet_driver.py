@@ -19,6 +19,8 @@ def process_patient(patient_name, base_folderpath):
 
 def main():
     base_folderpath = "/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/patients"
+
+    main_logger.info("prepare_for_locnet_driver commencing...")
     patient_dirs = [
         d for d in os.listdir(base_folderpath)
         if os.path.isdir(os.path.join(base_folderpath, d))
@@ -26,6 +28,8 @@ def main():
     
     for patient_name in tqdm(patient_dirs, desc="Processing patients"):
         process_patient(patient_name, base_folderpath)
+
+    main_logger.info("prepare_for_locnet_driver finished processing all patients.")
 
 if __name__ == "__main__":
     main()
