@@ -22,6 +22,7 @@ def run_inference_for_all_patients(base_output_folder):
         main_logger.info(f"LocNet loaded successfully.")
     except Exception as e:
         main_logger.error(f"Failed to load LocNet with error: {str(e)}")
+        return
     
     patients = [name for name in os.listdir(base_output_folder) if os.path.isdir(os.path.join(base_output_folder, name))]
     
