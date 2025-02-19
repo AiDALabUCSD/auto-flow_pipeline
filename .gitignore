@@ -5,3 +5,4 @@ __pycache__/
 *.h5
 *.egg-info
 src/notebooks/dicom_to_nifti_sandbox.ipynb
+src/notebooks/locnet_sandbox.ipynb
