@@ -76,7 +76,7 @@ def upsample_5d_volume(data, target_shape_4d, order=0, use_gpu=False, logger=Non
 def reverse_preprocessing_for_patient(
     patient_name: str,
     base_folderpath: str,
-    generate_gif: bool = True,
+    should_generate_gif: bool = True,
     logger=None
 ):
     """
@@ -125,9 +125,15 @@ def reverse_preprocessing_for_patient(
     new_nifti = nib.Nifti1Image(upsampled, original_img.affine)
     nib.save(new_nifti, output_nifti_path)
 
-    generate_gif(patient_name, base_folderpath, input_array=original_img.get_fdata(dtype=np.float32),n_jobs=4, pred_array=upsampled)
-    logger.info("Generated GIF from processed array.")
-
+    if should_generate_gif:
+        generate_gif(
+            patient_name,
+            base_folderpath,
+            input_array=original_img.get_fdata(dtype=np.float32),
+            n_jobs=4,
+            pred_array=upsampled
+        )
+        logger.info("Generated GIF from processed array.")
 
     if logger:
         logger.info("Reverse preprocessing complete.")
