@@ -31,7 +31,7 @@ dependencies:
   - cached_property=1.5.2=pyha770c72_1
   - cachetools=5.5.1=pyhd8ed1ab_0
   - cairo=1.16.0=hb05425b_5
-  - certifi=2024.12.14=pyhd8ed1ab_0
+  - certifi=2025.1.31=pyhd8ed1ab_0
   - cffi=1.17.1=py39h15c3d72_0
   - cfitsio=3.470=hb418390_7
   - charls=2.2.0=h9c3ff4c_0
