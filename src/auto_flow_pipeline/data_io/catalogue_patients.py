@@ -5,6 +5,19 @@ from auto_flow_pipeline.data_io.dicom_to_nifti import (
     find_cross_product_orientation
 )
 
+def load_patient_catalogue(base_output_folder: str = "/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/patients") -> pd.DataFrame:
+    """
+    Loads the patient catalogue DataFrame from 'patient_catalogue.csv'.
+
+    Parameters:
+        base_output_folder (str): Path to the folder where 'patients.csv' is stored. Defaults to the predefined path.
+
+    Returns:
+        pd.DataFrame: A pandas DataFrame containing the patient catalogue data.
+    """
+    patients_path = os.path.join(base_output_folder, "patient_catalogue.csv")
+    return pd.read_csv(patients_path)
+
 def get_vel_npy_shape(flow_info_df: pd.DataFrame) -> tuple:
     """
     Extracts the vel_npy_shape field from an already-loaded flow_info DataFrame.
