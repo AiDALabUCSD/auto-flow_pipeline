@@ -18,6 +18,17 @@ def load_patient_catalogue(base_output_folder: str = "/home/ayeluru/mnt/maxwell/
     patients_path = os.path.join(base_output_folder, "patient_catalogue.csv")
     return pd.read_csv(patients_path)
 
+def save_patient_catalogue(df: pd.DataFrame, base_output_folder: str = "/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/patients"):
+    """
+    Saves the patient catalogue DataFrame to 'patient_catalogue.csv'.
+
+    Parameters:
+        df (pd.DataFrame): The DataFrame to save.
+        base_output_folder (str): Path to the folder where 'patients.csv' is stored. Defaults to the predefined path.
+    """
+    patients_path = os.path.join(base_output_folder, "patient_catalogue.csv")
+    df.to_csv(patients_path, index=False)
+
 def get_vel_npy_shape(flow_info_df: pd.DataFrame) -> tuple:
     """
     Extracts the vel_npy_shape field from an already-loaded flow_info DataFrame.
