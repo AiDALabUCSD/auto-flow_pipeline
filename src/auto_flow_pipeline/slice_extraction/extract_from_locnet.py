@@ -13,6 +13,7 @@ def find_all_max_locations(prd=None, patient_name=None, base_folderpath=None, ti
 
     Finds the maximum-intensity location for each (timepoint, channel) in a 5D array
     and stores the results in a pandas DataFrame, along with channel names.
+    Also saves the DataFrame to the patient folder with the name 'max_points.csv'.
     """
 
     # If no array is provided, load NIfTI
@@ -48,4 +49,21 @@ def find_all_max_locations(prd=None, patient_name=None, base_folderpath=None, ti
     if timepoint is not None:
         df = df[df["timepoint"] == timepoint].copy()
 
+    # Save the DataFrame to the patient folder
+    if patient_name and base_folderpath:
+        output_path = os.path.join(base_folderpath, patient_name, "max_points.csv")
+        df.to_csv(output_path, index=False)
+
     return df
+
+def main():
+    patient_name = "Bulosul"
+    base_folderpath = (
+        "/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/patients"
+    )
+
+    df = find_all_max_locations(patient_name=patient_name, base_folderpath=base_folderpath)
+    print(df)
+
+if __name__ == "__main__":
+    main()
