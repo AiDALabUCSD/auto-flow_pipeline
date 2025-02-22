@@ -15,14 +15,17 @@ def find_all_max_locations(prd=None, patient_name=None, base_folderpath=None, ti
     and stores the results in a pandas DataFrame, along with channel names.
     Also saves the DataFrame to the patient folder with the name 'max_points.csv'.
     """
+    print("Starting find_all_max_locations...")
 
     # If no array is provided, load NIfTI
     if prd is None:
         if not (patient_name and base_folderpath):
             raise ValueError("Either 'prd' must be provided, or 'patient_name' and 'base_folderpath' must be specified.")
         nifti_path = os.path.join(base_folderpath, patient_name, "locnet_pred_processed.nii.gz")
+        print(f"Loading NIfTI file from {nifti_path}...")
         prd_img = nib.load(nifti_path)
         prd = prd_img.get_fdata(dtype=np.float32)
+        print("NIfTI file loaded.")
 
     titles = [
         "AV", "Proximal AAo", "Mid AAo", "Full Ao",
@@ -31,6 +34,8 @@ def find_all_max_locations(prd=None, patient_name=None, base_folderpath=None, ti
 
     R, C, S, T, Ch = prd.shape
     rows = []
+
+    print(f"Processing 5D array with shape {prd.shape}...")
 
     for t in range(T):
         for ch in range(Ch):
@@ -43,17 +48,21 @@ def find_all_max_locations(prd=None, patient_name=None, base_folderpath=None, ti
                 "c": loc[1],
                 "s": loc[2]
             })
+            print(f"Processed timepoint {t}, channel {ch}.")
 
     df = pd.DataFrame(rows, columns=["timepoint", "channel", "channel_name", "r", "c", "s"])
 
     if timepoint is not None:
         df = df[df["timepoint"] == timepoint].copy()
+        print(f"Filtered DataFrame to timepoint {timepoint}.")
 
     # Save the DataFrame to the patient folder
     if patient_name and base_folderpath:
         output_path = os.path.join(base_folderpath, patient_name, "max_points.csv")
         df.to_csv(output_path, index=False)
+        print(f"DataFrame saved to {output_path}.")
 
+    print("find_all_max_locations completed.")
     return df
 
 def main():
