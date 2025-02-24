@@ -21,6 +21,7 @@ def extract_for_all_patients(base_folderpath: str):
 def main():
     base_folderpath = "/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/patients"
     extract_for_all_patients(base_folderpath)
+    main_logger.info("All patients processed.")
 
 if __name__ == "__main__":
     main()
