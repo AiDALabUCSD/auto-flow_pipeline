@@ -21,4 +21,5 @@ prepare_for_locnet = "auto_flow_pipeline.drivers.prepare_for_locnet_driver:main"
 run_locnet = "auto_flow_pipeline.drivers.run_locnet_driver:main"
 reverse_preprocessing = "auto_flow_pipeline.drivers.reverse_preprocessing_driver:main"
 extract_from_locnet = "auto_flow_pipeline.drivers.extract_from_locnet_driver:main"
+generate_spline_driver = "auto_flow_pipeline.drivers.generate_spline_driver:main"
 
