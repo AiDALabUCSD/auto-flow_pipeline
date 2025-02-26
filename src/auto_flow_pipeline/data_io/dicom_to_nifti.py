@@ -358,6 +358,8 @@ def patient_to_nifti(pid, base_dicom_folder, base_output_folder, base_velocity_f
         A, Ainv, rowres, colres, sthick, slice_spacing = build_affine(df_4dflow, Nslices)
 
         # Check orientation and flip if necessary
+        # TODO (issue #1): need to fix affine when performing the flip by sending the affine in and returning it
+        # use z-axis affine flip logic from fix_nifti_affines in patches
         mag_4d, vel_5d, corrected_vel_5d = check_orientation_and_flip(df_4dflow, mag_4d, vel_5d, corrected_vel_5d, logger)
 
         # Save the 4D flow data as NIfTI files
