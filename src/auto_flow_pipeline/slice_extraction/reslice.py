@@ -53,6 +53,13 @@ def setup_patient_rgi(patient_name: str, base_path: str, mag_data=None, flow_dat
     logger.info(f"Loaded magnitude data shape: {mag_data.shape}")
     logger.info(f"Loaded flow data shape: {flow_data.shape}")
     
+    # TODO: (Patch for Issue #2) This was negated during the data loading process in dicom_to_nifti.py.
+    # Basically, we are undoing this as a patch but it seems like at the time of
+    # data loading itself, negation was unnecessary.
+
+    # Negate the z component of the velocity.
+    flow_data[..., 2] = -flow_data[..., 2]
+    
     # Create a coordinate grid using the dimensions of the volume.
     grid_mag = tuple(np.arange(dim) for dim in mag_data.shape)
     # Use only the first 4 dimensions for flow data (ignoring the last channel dimension).

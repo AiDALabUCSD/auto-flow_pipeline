@@ -68,6 +68,9 @@ def process_corrected_velocity_npy(npy_path, RDIM, CDIM, SDIM, TDIM, logger):
         tempnpy = np.load(npy_path)
         tempnpy = np.swapaxes(tempnpy, 0, 3)  # Swap (time, component, slice, row, col)
         tempnpy = np.swapaxes(tempnpy, 1, 4)  # Now (row, col, slice, time, component)
+
+        # TODO: Source of Issue #2. Unessary negation of SI component which had to be undone
+        # with patch in reslice.py. Need to investigate and fix.
         tempnpy[..., 2] = -tempnpy[..., 2]  # Negate SI component
         
         # Ensure correct shape with padding
