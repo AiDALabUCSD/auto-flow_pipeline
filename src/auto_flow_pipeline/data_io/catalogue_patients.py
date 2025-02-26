@@ -5,7 +5,7 @@ from auto_flow_pipeline.data_io.dicom_to_nifti import (
     find_cross_product_orientation
 )
 
-def load_patient_catalogue(base_output_folder: str = "/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/patients") -> pd.DataFrame:
+def load_patient_catalogue(base_output_folder: str = "/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/") -> pd.DataFrame:
     """
     Loads the patient catalogue DataFrame from 'patient_catalogue.csv'.
 
@@ -18,7 +18,7 @@ def load_patient_catalogue(base_output_folder: str = "/home/ayeluru/mnt/maxwell/
     patients_path = os.path.join(base_output_folder, "patient_catalogue.csv")
     return pd.read_csv(patients_path)
 
-def save_patient_catalogue(df: pd.DataFrame, base_output_folder: str = "/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/patients"):
+def save_patient_catalogue(df: pd.DataFrame, base_output_folder: str = "/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/"):
     """
     Saves the patient catalogue DataFrame to 'patient_catalogue.csv'.
 
@@ -81,6 +81,18 @@ def get_patient_info(pid: str, base_output_folder: str) -> dict:
         "cross_prod": cross_prod
     }
 
+def get_slice_diff(patient_name, catalogue_df):
+    """
+    Gets the slice_diff for a given patient.
+    
+    Args:
+        patient_name (str): The name of the patient.
+        catalogue_df (pd.DataFrame): The patient catalogue dataframe.
+    
+    Returns:
+        float: The slice_diff for the patient.
+    """
+    return float(catalogue_df.loc[catalogue_df['patient_id'] == patient_name, 'slice_diff'].values[0])
 
 def main():
     """
