@@ -6,7 +6,12 @@ import nibabel as nib
 import os
 from auto_flow_pipeline.data_io.logging_setup import setup_logger
 from auto_flow_pipeline import main_logger
-from auto_flow_pipeline.visualization.slice_extraction.generate_gifs import generate_gif_over_time, generate_gif_over_slices_and_time, generate_gif_velocity_subplots
+from auto_flow_pipeline.visualization.slice_extraction.generate_gifs import (
+    generate_gif_over_time, 
+    generate_gif_over_slices_and_time, 
+    generate_gif_velocity_subplots,
+    generate_gif_with_colormap_and_colorbar
+)
 
 def setup_patient_rgi(patient_name: str, base_path: str, mag_data=None, flow_data=None):
     """
@@ -88,6 +93,29 @@ def rotation_matrix_from_vectors(vec1, vec2):
     R = np.eye(3) + vx + vx.dot(vx) * ((1 - c) / (s**2))
     return R
 
+def compute_unit_normal(spline_df):
+    """
+    Compute the unit normal vector for the vessel using the first and last spline points.
+    
+    Parameters:
+        spline_df (pd.DataFrame): DataFrame containing spline points with 'x', 'y', and 'z' columns.
+        
+    Returns:
+        np.ndarray: The unit normal vector.
+    """
+    # Compute vessel tangent from the first and last spline points.
+    first = spline_df.loc[0, ['x', 'y', 'z']].to_numpy()
+    last = spline_df.loc[len(spline_df) - 1, ['x', 'y', 'z']].to_numpy()
+    tangent = last - first
+    tangent_norm = np.linalg.norm(tangent)
+    if tangent_norm == 0:
+        raise ValueError("The computed vessel tangent has zero length.")
+    tangent = tangent / tangent_norm
+
+    # For a vessel cross-section, the plane’s normal is the tangent.
+    unit_normal = tangent
+    return unit_normal
+
 def generate_sampling_plane(spline_df, row: int, plane_dims: tuple = (256, 256), 
                             resolution: tuple = (256, 256), affine: np.ndarray = None):
     """
@@ -123,17 +151,8 @@ def generate_sampling_plane(spline_df, row: int, plane_dims: tuple = (256, 256),
     # Use the spline point at this row as the plane center.
     center = spline_df.loc[row, ['x', 'y', 'z']].to_numpy()
 
-    # Compute vessel tangent from the first and last spline points.
-    first = spline_df.loc[0, ['x', 'y', 'z']].to_numpy()
-    last = spline_df.loc[len(spline_df) - 1, ['x', 'y', 'z']].to_numpy()
-    tangent = last - first
-    tangent_norm = np.linalg.norm(tangent)
-    if tangent_norm == 0:
-        raise ValueError("The computed vessel tangent has zero length.")
-    tangent = tangent / tangent_norm
-
-    # For a vessel cross-section, the plane’s normal is the tangent.
-    unit_normal = tangent
+    # Compute the unit normal vector.
+    unit_normal = compute_unit_normal(spline_df)
 
     # Compute the rotation that rotates the vessel normal to the axial direction [0, 0, 1].
     R = rotation_matrix_from_vectors(unit_normal, np.array([0, 0, 1]))
@@ -196,6 +215,8 @@ def sample_aortic_spline(patient_name: str, base_path: str, indices: list, mag_r
     # Create an array to store sampled flow planes.
     # Flow data has 3 channels, so the shape adds an extra dimension.
     sampled_flow_planes = np.zeros((resolution[0], resolution[1], len(indices), num_time_points, 3))
+    # Create an array to store through-plane velocities.
+    through_plane_velocities = np.zeros((resolution[0], resolution[1], len(indices), num_time_points))
     
     for idx, row_idx in enumerate(indices):
         # Generate the sampling plane for the given index.
@@ -205,6 +226,9 @@ def sample_aortic_spline(patient_name: str, base_path: str, indices: list, mag_r
                                             affine=affine)
         # Flatten the plane for sampling.
         flat_plane = plane_rcs.reshape(-1, 3)
+        
+        # Compute the unit normal vector.
+        unit_normal = compute_unit_normal(aortic_spline_df)
         
         for time_val in range(num_time_points):
             # Append a time coordinate for each point.
@@ -221,6 +245,10 @@ def sample_aortic_spline(patient_name: str, base_path: str, indices: list, mag_r
             # Reshape to (num_rows, num_cols, 3).
             sampled_flow_plane = sampled_flow_values.reshape((resolution[0], resolution[1], 3))
             sampled_flow_planes[..., idx, time_val, :] = sampled_flow_plane
+            
+            # Compute the through-plane velocity.
+            through_plane_velocity = np.dot(sampled_flow_plane, unit_normal)
+            through_plane_velocities[..., idx, time_val] = through_plane_velocity
 
     # Save the sampled magnitude planes as a NIfTI file.
     output_mag_nifti_path = os.path.join(base_path, patient_name, "aortic_spline_mag.nii.gz")
@@ -234,6 +262,12 @@ def sample_aortic_spline(patient_name: str, base_path: str, indices: list, mag_r
     nib.save(sampled_flow_nifti_img, output_flow_nifti_path)
     logger.info(f"Saved sampled aortic spline (flow) to {output_flow_nifti_path}")
     
+    # Save the through-plane velocities as a NIfTI file.
+    output_velocity_nifti_path = os.path.join(base_path, patient_name, "aortic_spline_flow-through.nii.gz")
+    sampled_velocity_nifti_img = nib.Nifti1Image(through_plane_velocities, affine)
+    nib.save(sampled_velocity_nifti_img, output_velocity_nifti_path)
+    logger.info(f"Saved sampled aortic spline (velocity) to {output_velocity_nifti_path}")
+    
     # Generate a GIF of the sampled magnitude planes over time.
     output_gif_path = os.path.join(base_path, patient_name, "aortic_spline_mag.gif")
     generate_gif_over_slices_and_time(sampled_mag_planes, output_gif_path)
@@ -243,6 +277,11 @@ def sample_aortic_spline(patient_name: str, base_path: str, indices: list, mag_r
     output_gif_path = os.path.join(base_path, patient_name, "aortic_spline_flow.gif")
     generate_gif_velocity_subplots(sampled_flow_planes, output_gif_path)
     logger.info(f"Saved GIF of sampled aortic spline (flow) to {output_gif_path}")
+
+    # Generate a GIF of the through-plane velocities over time.
+    output_gif_path = os.path.join(base_path, patient_name, "aortic_spline_flow-through.gif")
+    generate_gif_with_colormap_and_colorbar(through_plane_velocities, output_gif_path, value_range=(-1500, 1500))
+    logger.info(f"Saved GIF of sampled aortic spline (velocity) to {output_gif_path}")
 
 def sample_pulmonary_spline(patient_name: str, base_path: str, indices: list, mag_rgi, flow_rgi, affine, plane_dims: tuple = (256, 256), resolution: tuple = (256, 256)):
     """
@@ -274,6 +313,8 @@ def sample_pulmonary_spline(patient_name: str, base_path: str, indices: list, ma
     # Create an array to store sampled flow planes.
     # Flow data has 3 channels, so the shape adds an extra dimension.
     sampled_flow_planes = np.zeros((resolution[0], resolution[1], len(indices), num_time_points, 3))
+    # Create an array to store through-plane velocities.
+    through_plane_velocities = np.zeros((resolution[0], resolution[1], len(indices), num_time_points))
     
     for idx, row_idx in enumerate(indices):
         # Generate the sampling plane for the given index.
@@ -283,6 +324,9 @@ def sample_pulmonary_spline(patient_name: str, base_path: str, indices: list, ma
                                             affine=affine)
         # Flatten the plane for sampling.
         flat_plane = plane_rcs.reshape(-1, 3)
+        
+        # Compute the unit normal vector.
+        unit_normal = compute_unit_normal(pulmonary_spline_df)
         
         for time_val in range(num_time_points):
             # Append a time coordinate for each point.
@@ -299,6 +343,10 @@ def sample_pulmonary_spline(patient_name: str, base_path: str, indices: list, ma
             # Reshape to (num_rows, num_cols, 3).
             sampled_flow_plane = sampled_flow_values.reshape((resolution[0], resolution[1], 3))
             sampled_flow_planes[..., idx, time_val, :] = sampled_flow_plane
+            
+            # Compute the through-plane velocity.
+            through_plane_velocity = np.dot(sampled_flow_plane, unit_normal)
+            through_plane_velocities[..., idx, time_val] = through_plane_velocity
 
     # Save the sampled magnitude planes as a NIfTI file.
     output_mag_nifti_path = os.path.join(base_path, patient_name, "pulmonary_spline_mag.nii.gz")
@@ -312,6 +360,12 @@ def sample_pulmonary_spline(patient_name: str, base_path: str, indices: list, ma
     nib.save(sampled_flow_nifti_img, output_flow_nifti_path)
     logger.info(f"Saved sampled pulmonary spline (flow) to {output_flow_nifti_path}")
     
+    # Save the through-plane velocities as a NIfTI file.
+    output_velocity_nifti_path = os.path.join(base_path, patient_name, "pulmonary_spline_flow-through.nii.gz")
+    sampled_velocity_nifti_img = nib.Nifti1Image(through_plane_velocities, affine)
+    nib.save(sampled_velocity_nifti_img, output_velocity_nifti_path)
+    logger.info(f"Saved sampled pulmonary spline (velocity) to {output_velocity_nifti_path}")
+    
     # Generate a GIF of the sampled magnitude planes over time.
     output_gif_path = os.path.join(base_path, patient_name, "pulmonary_spline_mag.gif")
     generate_gif_over_slices_and_time(sampled_mag_planes, output_gif_path)
@@ -321,6 +375,11 @@ def sample_pulmonary_spline(patient_name: str, base_path: str, indices: list, ma
     output_gif_path = os.path.join(base_path, patient_name, "pulmonary_spline_flow.gif")
     generate_gif_velocity_subplots(sampled_flow_planes, output_gif_path)
     logger.info(f"Saved GIF of sampled pulmonary spline (flow) to {output_gif_path}")
+
+    # Generate a GIF of the through-plane velocities over time.
+    output_gif_path = os.path.join(base_path, patient_name, "pulmonary_spline_flow-through.gif")
+    generate_gif_with_colormap_and_colorbar(through_plane_velocities, output_gif_path, value_range=(-1500, 1500))
+    logger.info(f"Saved GIF of sampled pulmonary spline (velocity) to {output_gif_path}")
 
 def main():
     patient_name = 'Bulosul'
