@@ -1,5 +1,8 @@
 import imageio
 import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.colors import Normalize
+from matplotlib.cm import ScalarMappable
 
 def generate_gif_over_time(sliced_array: np.ndarray, output_path: str, duration: float = 0.5):
     """
@@ -130,4 +133,67 @@ def generate_gif_velocity_subplots(velocity_array: np.ndarray, output_path: str,
         frames.append(composite_frame)
     
     # Save the frames as a looping GIF.
+    imageio.mimsave(output_path, frames, duration=duration, loop=0)
+
+def generate_gif_with_colormap_and_colorbar(sliced_array: np.ndarray, output_path: str, duration: float = 0.5, value_range: tuple = None):
+    """
+    Generates a GIF from a 4D array of shape (height, width, num_slices, num_timepoints) with a 'jet' colormap and a colorbar.
+    
+    Parameters:
+        sliced_array (np.ndarray): 4D array with shape (height, width, num_slices, num_timepoints).
+        output_path (str): File path to save the generated GIF.
+        duration (float): Duration (in seconds) for each frame in the GIF.
+        value_range (tuple): Optional tuple (min, max) to set the range for normalization. Values outside this range are clipped.
+    """
+    frames = []
+    
+    # Normalize the data to the [0, 1] range.
+    arr = sliced_array.copy().astype(np.float32)
+    
+    if value_range is not None:
+        vmin, vmax = value_range
+        arr = np.clip(arr, vmin, vmax)
+    else:
+        vmin, vmax = arr.min(), arr.max()
+    
+    norm = Normalize(vmin=vmin, vmax=vmax)
+    arr = norm(arr)
+    
+    num_timepoints = arr.shape[3]
+    num_slices = arr.shape[2]
+    
+    for t in range(num_timepoints):
+        # For the current time point, extract each slice (2D image).
+        slice_images = []
+        for s in range(num_slices):
+            img = arr[:, :, s, t]
+            # Apply the 'jet' colormap.
+            img_colored = plt.cm.jet(img)
+            # Convert to 8-bit RGB.
+            img_colored = (img_colored[:, :, :3] * 255).astype(np.uint8)
+            slice_images.append(img_colored)
+        
+        # Tile the slices horizontally to create a composite image.
+        composite_image = np.hstack(slice_images)
+        
+        # Create a figure with the composite image and a colorbar.
+        fig, ax = plt.subplots(figsize=(composite_image.shape[1] / 100, composite_image.shape[0] / 100), dpi=100)
+        ax.imshow(composite_image)
+        ax.axis('off')
+        
+        # Add a colorbar.
+        sm = ScalarMappable(cmap='jet', norm=norm)
+        sm.set_array([])
+        cbar = fig.colorbar(sm, ax=ax, fraction=0.046, pad=0.04)
+        
+        # Save the figure to a temporary buffer.
+        fig.canvas.draw()
+        buf = fig.canvas.tostring_rgb()
+        ncols, nrows = fig.canvas.get_width_height()
+        frame = np.frombuffer(buf, dtype=np.uint8).reshape(nrows, ncols, 3)
+        
+        frames.append(frame)
+        plt.close(fig)
+    
+    # Save the frames as a GIF.
     imageio.mimsave(output_path, frames, duration=duration, loop=0)
