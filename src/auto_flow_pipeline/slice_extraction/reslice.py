@@ -6,7 +6,7 @@ import nibabel as nib
 import os
 from auto_flow_pipeline.data_io.logging_setup import setup_logger
 from auto_flow_pipeline import main_logger
-from auto_flow_pipeline.visualization.slice_extraction.generate_gifs import generate_gif_from_slices
+from auto_flow_pipeline.visualization.slice_extraction.generate_gifs import generate_gif_over_time, generate_gif_over_slices_and_time
 
 def setup_patient_rgi(patient_name: str, base_path: str, mag_data=None, flow_data=None):
     """
@@ -166,63 +166,78 @@ def generate_sampling_plane(spline_df, row: int, plane_dims: tuple = (256, 256),
     else:
         return plane_real_world
 
-def main():
-    patient_name = 'Bulosul'
-    base_path = '/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/patients'
+def sample_aortic_spline(patient_name: str, base_path: str, indices: list, plane_dims: tuple = (256, 256), resolution: tuple = (256, 256)):
+    """
+    Sample multiple points along the aortic spline over all time points and save the result as aortic_spline.nii.gz.
+    
+    Parameters:
+        patient_name (str): The patient identifier.
+        base_path (str): The base path where the patient folder is located.
+        indices (list): List of indices along the spline to sample.
+        plane_dims (tuple): Dimensions (height, width) of the plane in mm. Default is (256, 256).
+        resolution (tuple): Grid resolution (num_rows, num_cols) of the plane. Default is (256, 256).
+    """
+    logger = setup_logger(patient_name, base_path)
+    logger.info(f"Starting aortic spline sampling for patient {patient_name}")
     
     # Set up the RGIs.
     mag_rgi, flow_rgi = setup_patient_rgi(patient_name, base_path)
     
     # Assume the aortic spline is saved as a CSV in the patient's directory.
-    # The CSV should have columns: "x", "y", and "z"
     spline_csv = os.path.join(base_path, patient_name, "aortic_spline.csv")
     aortic_spline_df = pd.read_csv(spline_csv)
-    
-    # Choose which row from the spline to center the sampling plane.
-    row_idx = 25  # for example, the 26th point along the spline.
-    
-    # Define the real-world plane dimensions (in mm) and resolution (grid size).
-    plane_dims = (256, 256)
-    resolution = (256, 256)
     
     # Read the affine matrix from the patient's mag_4dflow.nii.gz file.
     mag_path = os.path.join(base_path, patient_name, "mag_4dflow.nii.gz")
     mag_img = nib.load(mag_path)
     affine = mag_img.affine
     
-    # Generate the sampling plane (the function returns points either in 
-    # real-world or in RCS space if affine is provided).
-    plane_rcs = generate_sampling_plane(aortic_spline_df, row_idx, 
-                                        plane_dims=plane_dims, 
-                                        resolution=resolution, 
-                                        affine=affine)
-    
-    # The plane_rcs is an array of shape (num_rows, num_cols, 3).
-    num_points = resolution[0] * resolution[1]
-    flat_plane = plane_rcs.reshape(-1, 3)
-    
     # Sample at all time points
     num_time_points = mag_img.shape[3]
-    sampled_planes = np.zeros((resolution[0], resolution[1], num_time_points))
+    num_points = resolution[0] * resolution[1]
+    sampled_planes = np.zeros((resolution[0], resolution[1], len(indices), num_time_points))
     
-    for time_val in range(num_time_points):
-        # Append a time coordinate for each point.
-        sample_points = np.hstack([flat_plane, np.full((num_points, 1), time_val)])
+    for idx, row_idx in enumerate(indices):
+        # Generate the sampling plane for the given index.
+        plane_rcs = generate_sampling_plane(aortic_spline_df, row_idx, 
+                                            plane_dims=plane_dims, 
+                                            resolution=resolution, 
+                                            affine=affine)
         
-        # Sample from the magnitude interpolator.
-        sampled_values = mag_rgi(sample_points)
+        # Flatten the plane for sampling.
+        flat_plane = plane_rcs.reshape(-1, 3)
         
-        # Reshape the sampled values back to the plane grid.
-        sampled_plane = sampled_values.reshape(resolution)
-        sampled_planes[..., time_val] = sampled_plane
+        for time_val in range(num_time_points):
+            # Append a time coordinate for each point.
+            sample_points = np.hstack([flat_plane, np.full((num_points, 1), time_val)])
+            
+            # Sample from the magnitude interpolator.
+            sampled_values = mag_rgi(sample_points)
+            
+            # Reshape the sampled values back to the plane grid.
+            sampled_plane = sampled_values.reshape(resolution)
+            sampled_planes[..., idx, time_val] = sampled_plane
     
-    print("Sampled planes at all time points from aortic spline (magnitude):")
-    print(sampled_planes.shape)
+    # Save the sampled planes as a NIfTI file.
+    output_nifti_path = os.path.join(base_path, patient_name, "aortic_spline.nii.gz")
+    sampled_nifti_img = nib.Nifti1Image(sampled_planes, affine)
+    nib.save(sampled_nifti_img, output_nifti_path)
+    logger.info(f"Saved sampled aortic spline to {output_nifti_path}")
 
-    # Generate a GIF of the sampled planes.
-    output_gif_path = os.path.join(base_path, patient_name, "sampled_aortic_planes.gif")
-    generate_gif_from_slices(sampled_planes, output_gif_path)
-    print(f"Generated GIF of sampled aortic planes at {output_gif_path}")
+    # Generate a GIF of the sampled planes over time.
+    output_gif_path = os.path.join(base_path, patient_name, "aortic_spline.gif")
+    generate_gif_over_slices_and_time(sampled_planes, output_gif_path)
+    logger.info(f"Saved GIF of sampled aortic spline to {output_gif_path}")
+
+def main():
+    patient_name = 'Bulosul'
+    base_path = '/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/patients'
+    
+    # Example indices to sample along the spline.
+    indices = [5, 10, 15, 20, 25]
+    
+    # Sample the aortic spline and save the result.
+    sample_aortic_spline(patient_name, base_path, indices)
 
 if __name__ == "__main__":
     main()
