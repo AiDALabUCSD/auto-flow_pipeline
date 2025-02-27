@@ -1,6 +1,16 @@
 import os
+import sys
 import logging
+from tqdm import tqdm
 
+class TqdmLoggingHandler(logging.StreamHandler):
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            tqdm.write(msg, file=self.stream)
+            self.flush()
+        except Exception:
+            self.handleError(record)
 
 def setup_logger(patient_name, output_folder, console_log=True):
     """
@@ -35,7 +45,8 @@ def setup_logger(patient_name, output_folder, console_log=True):
 
         # Optionally add console logging
         if console_log:
-            console_handler = logging.StreamHandler()
+            # Use the custom TqdmLoggingHandler to play nicely with tqdm.
+            console_handler = TqdmLoggingHandler(sys.stderr)
             console_handler.setLevel(logging.INFO)
             console_handler.setFormatter(formatter)
             logger.addHandler(console_handler)
