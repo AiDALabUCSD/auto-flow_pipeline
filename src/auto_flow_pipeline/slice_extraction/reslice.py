@@ -10,7 +10,8 @@ from auto_flow_pipeline.visualization.slice_extraction.generate_gifs import (
     generate_gif_over_time, 
     generate_gif_over_slices_and_time, 
     generate_gif_velocity_subplots,
-    generate_gif_with_colormap_and_colorbar
+    generate_gif_with_colormap_and_colorbar,
+    generate_combined_gif
 )
 
 def setup_patient_rgi(patient_name: str, base_path: str, mag_data=None, flow_data=None):
@@ -290,6 +291,11 @@ def sample_aortic_spline(patient_name: str, base_path: str, indices: list, mag_r
     generate_gif_with_colormap_and_colorbar(through_plane_velocities, output_gif_path, value_range=(-1500, 1500))
     logger.info(f"Saved GIF of sampled aortic spline (velocity) to {output_gif_path}")
 
+    # Generate a combined GIF of the magnitude and flow planes.
+    output_gif_path = os.path.join(base_path, patient_name, "aortic_spline_combined.gif")
+    generate_combined_gif(sampled_mag_planes, through_plane_velocities, output_gif_path, value_range=(-1500, 1500))
+    logger.info(f"Saved combined GIF of sampled aortic spline to {output_gif_path}")
+
 def sample_pulmonary_spline(patient_name: str, base_path: str, indices: list, mag_rgi, flow_rgi, affine, plane_dims: tuple = (256, 256), resolution: tuple = (256, 256)):
     """
     Sample multiple points along the pulmonary spline over all time points and save the result as pulmonary_spline.nii.gz.
@@ -387,6 +393,11 @@ def sample_pulmonary_spline(patient_name: str, base_path: str, indices: list, ma
     output_gif_path = os.path.join(base_path, patient_name, "pulmonary_spline_flow-through.gif")
     generate_gif_with_colormap_and_colorbar(through_plane_velocities, output_gif_path, value_range=(-1500, 1500))
     logger.info(f"Saved GIF of sampled pulmonary spline (velocity) to {output_gif_path}")
+
+    # Generate a combined GIF of the magnitude and flow planes.
+    output_gif_path = os.path.join(base_path, patient_name, "pulmonary_spline_combined.gif")
+    generate_combined_gif(sampled_mag_planes, through_plane_velocities, output_gif_path, value_range=(-1500, 1500))
+    logger.info(f"Saved combined GIF of sampled pulmonary spline to {output_gif_path}")
 
 def main():
     patient_name = 'Bulosul'
