@@ -23,4 +23,5 @@ reverse_preprocessing = "auto_flow_pipeline.drivers.reverse_preprocessing_driver
 extract_from_locnet = "auto_flow_pipeline.drivers.extract_from_locnet_driver:main"
 generate_spline = "auto_flow_pipeline.drivers.generate_spline_driver:main"
 reslice = "auto_flow_pipeline.drivers.reslice_driver:main"
+prepare_for_segnet = "auto_flow_pipeline.drivers.prepare_for_segnet_driver:main"
 
