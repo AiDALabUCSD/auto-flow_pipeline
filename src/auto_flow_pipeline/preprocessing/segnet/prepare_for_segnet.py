@@ -263,6 +263,7 @@ def compose_and_save_splines(patient_name: str, base_path: str) -> None:
     aorta_nii = nib.Nifti1Image(aorta_preprocessed, aorta_data["mag"].affine)
     nib.save(aorta_nii, os.path.join(base_path, patient_name, "aorta_spline_composed.nii.gz"))
     logger.info("Aorta preprocessed data saved as aorta_spline_composed.nii.gz")
+    logger.info("Generating GIFs for aorta data...")
     generate_two_row_gifs_for_slices(
         patient_name,
         base_path,
@@ -271,6 +272,7 @@ def compose_and_save_splines(patient_name: str, base_path: str) -> None:
         duration=0.5,
         value_range=(-1, 1)
     )
+    logger.info("GIFs generated for aorta data.")
 
     # Pulmonary
     logger.info("Loading pulmonary spline data...")
@@ -289,6 +291,7 @@ def compose_and_save_splines(patient_name: str, base_path: str) -> None:
     pulmonary_nii = nib.Nifti1Image(pulmonary_preprocessed, pulmonary_data["mag"].affine)
     nib.save(pulmonary_nii, os.path.join(base_path, patient_name, "pulmonary_spline_composed.nii.gz"))
     logger.info("Pulmonary preprocessed data saved as pulmonary_spline_composed.nii.gz")
+    logger.info("Generating GIFs for pulmonary data...")
     generate_two_row_gifs_for_slices(
         patient_name,
         base_path,
@@ -297,6 +300,7 @@ def compose_and_save_splines(patient_name: str, base_path: str) -> None:
         duration=0.5,
         value_range=(-1, 1)
     )
+    logger.info("GIFs generated for pulmonary data.")
 
 def main():
     patient_name = "Bulosul"
