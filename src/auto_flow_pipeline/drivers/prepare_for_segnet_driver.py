@@ -1,13 +1,13 @@
 import os
 from tqdm import tqdm
 import concurrent.futures
-from auto_flow_pipeline.preprocessing.segnet.prepare_for_segnet import prepare_patient_for_segnet
+from auto_flow_pipeline.preprocessing.segnet.prepare_for_segnet import compose_and_save_splines
 from auto_flow_pipeline import main_logger
 
 def process_patient(pid, base_folderpath: str):
     main_logger.info(f"Preparing patient for segnet: {pid}")
     try:
-        prepare_patient_for_segnet(pid, base_folderpath)
+        compose_and_save_splines(pid, base_folderpath)
         main_logger.info(f"Preparation complete for {pid}.")
     except Exception as e:
         main_logger.error(f"Error preparing {pid}: {e}")
@@ -20,7 +20,7 @@ def prepare_for_all_patients(base_folderpath: str):
     ]
     
     # Using ThreadPoolExecutor to process patients concurrently.
-    with concurrent.futures.ThreadPoolExecutor(max_workers=-1) as executor:
+    with concurrent.futures.ThreadPoolExecutor() as executor:
         futures = {executor.submit(process_patient, pid, base_folderpath): pid for pid in patient_dirs}
         # tqdm.with .as_completed to update the progress bar as tasks complete.
         for _ in tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc="Preparing patients"):
