@@ -6,3 +6,4 @@ __pycache__/
 *.egg-info
 src/notebooks/dicom_to_nifti_sandbox.ipynb
 src/notebooks/locnet_sandbox.ipynb
+src/notebooks/segnet_sandbox.ipynb
