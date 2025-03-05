@@ -98,20 +98,31 @@ def generate_four_row_gifs_for_slices_w_pred(
             row_bottom_colored_prediction = row_bottom_colored.copy()
 
             # prediction[t, :, :, s] => shape (r, c)
-            predict_slice = prediction[t, :, :, s]
+            # Ensure binary segmentation mask
+            predict_slice = (prediction[t, :, :, s] > 0.5).astype(np.uint8)
 
             # Repeat horizontally to match the shape (r, 3*c)
-            mask_tiled = np.hstack([predict_slice, predict_slice, predict_slice]) > 0
+            mask_tiled = np.hstack([predict_slice, predict_slice, predict_slice])
 
-            # Paint red ([255, 0, 0]) on the overlay
-            row_top_rgb_prediction[mask_tiled] = [255, 0, 0]
-            row_bottom_colored_prediction[mask_tiled] = [255, 0, 0]
+            # Define overlay color (red) and transparency level
+            overlay_color = np.array([255, 0, 0], dtype=np.uint8)
+            alpha = 0.4  # Set transparency (0 = fully transparent, 1 = fully opaque)
+
+            # Function to apply transparent overlay only on segmentation mask
+            def apply_overlay(image, mask, color, alpha):
+                overlay = image.copy()
+                mask_indices = mask > 0  # Apply only where mask is present
+                overlay[mask_indices] = (1 - alpha) * image[mask_indices] + alpha * color
+                return overlay.astype(np.uint8)
+
+            # Apply the overlay only on segmentation regions
+            row_top_rgb_prediction = apply_overlay(row_top_rgb, mask_tiled, overlay_color, alpha)
+            row_bottom_colored_prediction = apply_overlay(row_bottom_colored, mask_tiled, overlay_color, alpha)
 
             # Stack those two rows
             frame_with_seg = np.vstack([row_top_rgb_prediction, row_bottom_colored_prediction])
 
             # Finally, stack the "no seg" and "with seg" vertically
-            # => shape (4*r, 3*c, 3)
             frame = np.vstack([frame_no_seg, frame_with_seg])
             frames.append(frame)
 
