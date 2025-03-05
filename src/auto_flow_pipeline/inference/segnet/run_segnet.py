@@ -2,6 +2,7 @@ import os
 import nibabel as nib
 import numpy as np
 from auto_flow_pipeline.data_io.logging_setup import setup_logger
+from auto_flow_pipeline import main_logger
 from auto_flow_pipeline.inference.segnet.model_loader import load_segnet
 import traceback
 import logging
@@ -177,25 +178,24 @@ def main() -> None:
     base_output_folder = '/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/patients'  # Update this path as needed
     patient_name = "Bepemhir"  # Update this patient name as needed
     
-    logger = setup_logger('main_logger', base_output_folder)
-    logger.info("Loading SegNet model...")
+    main_logger.info("Loading SegNet model...")
     model = load_segnet()  # Load the SegNet model
     
     try:
-        logger.info(f"Starting inference for patient: {patient_name}")
+        main_logger.info(f"Starting inference for patient: {patient_name}")
         aorta_input, aorta_prediction, pulmonary_input, pulmonary_prediction = run_a_and_p_segnet_inference(model, base_output_folder, patient_name)
-        logger.info(f"Completed inference for patient: {patient_name}")
+        main_logger.info(f"Completed inference for patient: {patient_name}")
         
-        logger.info(f"Generating Aorta SegNet GIF for patient: {patient_name}")
+        main_logger.info(f"Generating Aorta SegNet GIF for patient: {patient_name}")
         generate_four_row_gifs_for_slices_w_pred(patient_name, base_output_folder,'aorta_segnet_predictions', aorta_input, aorta_prediction)
-        logger.info(f"Completed Aorta SegNet GIF generation for patient: {patient_name}")
+        main_logger.info(f"Completed Aorta SegNet GIF generation for patient: {patient_name}")
 
-        logger.info(f"Generating Pulmonary SegNet GIF for patient: {patient_name}")
+        main_logger.info(f"Generating Pulmonary SegNet GIF for patient: {patient_name}")
         generate_four_row_gifs_for_slices_w_pred(patient_name, base_output_folder,'pulmonary_segnet_predictions', pulmonary_input, pulmonary_prediction)
-        logger.info(f"Completed Pulmonary SegNet GIF generation for patient: {patient_name}")
+        main_logger.info(f"Completed Pulmonary SegNet GIF generation for patient: {patient_name}")
     except Exception as e:
-        logger.error(f"Failed inference for patient: {patient_name} with error: {str(e)}")
-        logger.error(traceback.format_exc())
+        main_logger.error(f"Failed inference for patient: {patient_name} with error: {str(e)}")
+        main_logger.error(traceback.format_exc())
 
 if __name__ == "__main__":
     main()
