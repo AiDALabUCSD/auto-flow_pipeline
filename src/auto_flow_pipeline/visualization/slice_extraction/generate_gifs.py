@@ -199,7 +199,11 @@ def generate_gif_with_colormap_and_colorbar(sliced_array: np.ndarray, output_pat
     # Save the frames as a GIF.
     imageio.mimsave(output_path, frames, duration=duration, loop=0)
 
-def generate_combined_gif(array1: np.ndarray, array2: np.ndarray, output_path: str, duration: float = 0.5, value_range: tuple = None):
+def generate_combined_gif(array1: np.ndarray,
+                          array2: np.ndarray,
+                          output_path: str,
+                          duration: float = 0.5,
+                          value_range: tuple = None):
     """
     Generates a GIF with four rows for each timepoint:
       - Row 1: Tiles the slices of the first array (grayscale).
