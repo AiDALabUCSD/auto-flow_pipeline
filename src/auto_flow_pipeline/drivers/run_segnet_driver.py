@@ -37,6 +37,7 @@ def run_inference_for_all_patients(base_folderpath: str):
 def main():
     base_folderpath = "/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/patients"
     run_inference_for_all_patients(base_folderpath)
+    main_logger.info("Inference for all patients complete.")
 
 if __name__ == "__main__":
     main()
