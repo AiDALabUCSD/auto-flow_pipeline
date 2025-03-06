@@ -2,6 +2,16 @@ import os
 import pandas as pd
 from auto_flow_pipeline.data_io.catalogue_patients import get_patient_info
 from auto_flow_pipeline import main_logger
+from concurrent.futures import ProcessPoolExecutor, as_completed
+
+def process_patient(pid, base_output_folder):
+    try:
+        patient_info = get_patient_info(pid, base_output_folder)
+        patient_info['vel_shape'] = str(patient_info['vel_shape'])
+        patient_info['cross_prod'] = str(patient_info['cross_prod'])
+        return pid, patient_info, None
+    except Exception as e:
+        return pid, None, e
 
 def update_patient_catalogue(base_output_folder: str, catalogue_path: str):
     """
@@ -30,28 +40,31 @@ def update_patient_catalogue(base_output_folder: str, catalogue_path: str):
             catalogue_df = pd.DataFrame(columns=["patient_id", "vel_shape", "slice_diff", "cross_prod", "bpm"])
             main_logger.info("Initialized new patient catalogue.")
 
-        # Update the catalogue with information for each patient
-        for pid in patient_dirs:
-            main_logger.info(f"Processing patient directory: {pid}")
-            try:
-                patient_info = get_patient_info(pid, base_output_folder)
-                
-                # Check if the patient ID already exists in the catalogue
-                if pid in catalogue_df['patient_id'].values:
-                    # Update the existing entry
-                    catalogue_df.loc[catalogue_df['patient_id'] == pid, 'vel_shape'] = str(patient_info['vel_shape'])
-                    catalogue_df.loc[catalogue_df['patient_id'] == pid, 'slice_diff'] = patient_info['slice_diff']
-                    catalogue_df.loc[catalogue_df['patient_id'] == pid, 'cross_prod'] = str(patient_info['cross_prod'])
-                    catalogue_df.loc[catalogue_df['patient_id'] == pid, 'bpm'] = patient_info['bpm']
-                    main_logger.info(f"Updated existing entry for patient {pid}.")
-                else:
-                    # Append the new entry
-                    patient_info['vel_shape'] = str(patient_info['vel_shape'])
-                    patient_info['cross_prod'] = str(patient_info['cross_prod'])
-                    catalogue_df = pd.concat([catalogue_df, pd.DataFrame([patient_info])], ignore_index=True)
-                    main_logger.info(f"Added new entry for patient {pid}.")
-            except Exception as e:
-                main_logger.error(f"Error processing patient {pid}: {e}")
+        # Use ProcessPoolExecutor to process patients in parallel
+        with ProcessPoolExecutor() as executor:
+            futures = {executor.submit(process_patient, pid, base_output_folder): pid for pid in patient_dirs}
+            for future in as_completed(futures):
+                pid = futures[future]
+                try:
+                    pid, patient_info, error = future.result()
+                    if error:
+                        raise error
+                    main_logger.info(f"Processing patient directory: {pid}")
+                    
+                    # Check if the patient ID already exists in the catalogue
+                    if pid in catalogue_df['patient_id'].values:
+                        # Update the existing entry
+                        catalogue_df.loc[catalogue_df['patient_id'] == pid, 'vel_shape'] = patient_info['vel_shape']
+                        catalogue_df.loc[catalogue_df['patient_id'] == pid, 'slice_diff'] = patient_info['slice_diff']
+                        catalogue_df.loc[catalogue_df['patient_id'] == pid, 'cross_prod'] = patient_info['cross_prod']
+                        catalogue_df.loc[catalogue_df['patient_id'] == pid, 'bpm'] = patient_info['bpm']
+                        main_logger.info(f"Updated existing entry for patient {pid}.")
+                    else:
+                        # Append the new entry
+                        catalogue_df = pd.concat([catalogue_df, pd.DataFrame([patient_info])], ignore_index=True)
+                        main_logger.info(f"Added new entry for patient {pid}.")
+                except Exception as e:
+                    main_logger.error(f"Error processing patient {pid}: {e}")
 
         # Save the updated catalogue
         catalogue_df.to_csv(catalogue_path, index=False)
