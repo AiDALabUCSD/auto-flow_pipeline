@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "auto_flow_pipeline"
-version = "0.1.0"
+version = "2.12.0"
 description = "This is the pipeline to use AutoFlow..."
 dependencies = []
 
