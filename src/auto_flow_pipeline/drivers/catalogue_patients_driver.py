@@ -27,7 +27,7 @@ def update_patient_catalogue(base_output_folder: str, catalogue_path: str):
             catalogue_df = pd.read_csv(catalogue_path)
             main_logger.info("Loaded existing patient catalogue.")
         else:
-            catalogue_df = pd.DataFrame(columns=["patient_id", "vel_shape", "slice_diff", "cross_prod"])
+            catalogue_df = pd.DataFrame(columns=["patient_id", "vel_shape", "slice_diff", "cross_prod", "bpm"])
             main_logger.info("Initialized new patient catalogue.")
 
         # Update the catalogue with information for each patient
@@ -42,6 +42,7 @@ def update_patient_catalogue(base_output_folder: str, catalogue_path: str):
                     catalogue_df.loc[catalogue_df['patient_id'] == pid, 'vel_shape'] = str(patient_info['vel_shape'])
                     catalogue_df.loc[catalogue_df['patient_id'] == pid, 'slice_diff'] = patient_info['slice_diff']
                     catalogue_df.loc[catalogue_df['patient_id'] == pid, 'cross_prod'] = str(patient_info['cross_prod'])
+                    catalogue_df.loc[catalogue_df['patient_id'] == pid, 'bpm'] = patient_info['bpm']
                     main_logger.info(f"Updated existing entry for patient {pid}.")
                 else:
                     # Append the new entry

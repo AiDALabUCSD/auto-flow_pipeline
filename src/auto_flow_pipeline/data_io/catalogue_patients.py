@@ -1,5 +1,6 @@
 import os
 import pandas as pd
+import pydicom
 from auto_flow_pipeline.data_io.dicom_to_nifti import (
     find_difference_between_slices,
     find_cross_product_orientation
@@ -57,6 +58,20 @@ def get_flow_info_df(pid: str, base_output_folder: str) -> pd.DataFrame:
     flow_info_path = os.path.join(base_output_folder, pid, "flow_info.csv")
     return pd.read_csv(flow_info_path)
 
+def get_bpm_from_dicom(flow_info_df: pd.DataFrame) -> int:
+    """
+    Extracts the heart rate (bpm) from the first DICOM file listed in the 'FilePath' column of the flow_info DataFrame.
+
+    Parameters:
+        flow_info_df (pd.DataFrame): The patient's flow info DataFrame, already loaded.
+
+    Returns:
+        int: The heart rate (bpm) extracted from the DICOM file.
+    """
+    dicom_file_path = flow_info_df['FilePath'].iloc[0]
+    dicom_data = pydicom.dcmread(dicom_file_path, stop_before_pixels=True)
+    bpm = dicom_data[0x0018, 0x1088].value
+    return bpm
 
 def get_patient_info(pid: str, base_output_folder: str) -> dict:
     """
@@ -65,7 +80,6 @@ def get_patient_info(pid: str, base_output_folder: str) -> dict:
     Parameters:
         pid (str): Patient ID.
         base_output_folder (str): Path to the folder where 'flow_info.csv' is stored.
-
     Returns:
         dict: A dictionary containing the patient's information.
     """
@@ -73,12 +87,14 @@ def get_patient_info(pid: str, base_output_folder: str) -> dict:
     vel_shape = get_vel_npy_shape(df)
     slice_diff = find_difference_between_slices(df)
     cross_prod = find_cross_product_orientation(df)
+    bpm = get_bpm_from_dicom(df)
 
     return {
         "patient_id": pid,
         "vel_shape": vel_shape,
         "slice_diff": slice_diff,
-        "cross_prod": cross_prod
+        "cross_prod": cross_prod,
+        "bpm": bpm
     }
 
 def get_slice_diff(patient_name, catalogue_df):
