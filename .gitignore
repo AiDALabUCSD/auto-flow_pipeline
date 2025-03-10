@@ -7,3 +7,5 @@ __pycache__/
 src/notebooks/dicom_to_nifti_sandbox.ipynb
 src/notebooks/locnet_sandbox.ipynb
 src/notebooks/segnet_debug.ipynb
+reference_pipeline/figure-creation_misc.ipynb
+reference_pipeline/final-analysis.ipynb
