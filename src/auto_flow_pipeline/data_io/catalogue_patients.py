@@ -1,5 +1,6 @@
 import os
 import pandas as pd
+import numpy as np
 import pydicom
 from auto_flow_pipeline.data_io.dicom_to_nifti import (
     find_difference_between_slices,
@@ -109,6 +110,55 @@ def get_slice_diff(patient_name, catalogue_df):
         float: The slice_diff for the patient.
     """
     return float(catalogue_df.loc[catalogue_df['patient_id'] == patient_name, 'slice_diff'].values[0])
+
+def get_flow_measurements(patient_name: str, base_path: str) -> dict:
+    """
+    Retrieves the first 5 aortic and 5 pulmonary flow measurements for a given patient.
+
+    Parameters:
+        patient_name (str): Name/ID of the patient.
+        base_path (str): Base path where patient data is stored.
+
+    Returns:
+        dict: A dictionary containing the flow measurements and additional statistics.
+    """
+    aortic_flow_csv_path = os.path.join(base_path, patient_name, 'aortic_flow_rates.csv')
+    pulmonary_flow_csv_path = os.path.join(base_path, patient_name, 'pulmonary_flow_rates.csv')
+
+    aortic_flow_df = pd.read_csv(aortic_flow_csv_path)
+    pulmonary_flow_df = pd.read_csv(pulmonary_flow_csv_path)
+
+    aortic_measurements = aortic_flow_df['volumetric_flow_rate'].head(5).tolist()
+    pulmonary_measurements = pulmonary_flow_df['volumetric_flow_rate'].head(5).tolist()
+
+    Ao_auto = np.mean(aortic_measurements)
+    PA_auto = np.mean(pulmonary_measurements)
+    Ao_auto_std = np.std(aortic_measurements)
+    PA_auto_std = np.std(pulmonary_measurements)
+    Qp_Qs = PA_auto / Ao_auto
+    Qp_Qs_auto_std = Qp_Qs * np.sqrt((PA_auto_std / PA_auto) ** 2 + (Ao_auto_std / Ao_auto) ** 2)
+
+    flow_measurements = {
+        'patient_id': patient_name,
+        'A1': aortic_measurements[0],
+        'A2': aortic_measurements[1],
+        'A3': aortic_measurements[2],
+        'A4': aortic_measurements[3],
+        'A5': aortic_measurements[4],
+        'P1': pulmonary_measurements[0],
+        'P2': pulmonary_measurements[1],
+        'P3': pulmonary_measurements[2],
+        'P4': pulmonary_measurements[3],
+        'P5': pulmonary_measurements[4],
+        'Ao_auto': Ao_auto,
+        'PA_auto': PA_auto,
+        'Ao_auto_std': Ao_auto_std,
+        'PA_auto_std': PA_auto_std,
+        'Qp-Qs_auto': Qp_Qs,
+        'Qp-Qs_auto_std': Qp_Qs_auto_std
+    }
+
+    return flow_measurements
 
 def main():
     """
