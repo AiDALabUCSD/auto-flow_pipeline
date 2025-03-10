@@ -26,4 +26,5 @@ reslice = "auto_flow_pipeline.drivers.reslice_driver:main"
 prepare_for_segnet = "auto_flow_pipeline.drivers.prepare_for_segnet_driver:main"
 run_segnet = "auto_flow_pipeline.drivers.run_segnet_driver:main"
 reverse_segnet_preprocessing = "auto_flow_pipeline.drivers.reverse_segnet_preprocessing_driver:main"
+compute_flow = "auto_flow_pipeline.drivers.compute_flow_driver:main"
 
