@@ -54,7 +54,7 @@ def consolidate_flow_measurements(base_output_folder: str, output_path: str):
 
 def main():
     base_output_folder = "/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/patients"
-    output_path = "/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/flow_measurements.csv"
+    output_path = "/home/ayeluru/mnt/maxwell/projects/Aorta_pulmonary_artery_localization/ge_testing/flow_measurements_autoflow_ge.csv"
     
     consolidate_flow_measurements(base_output_folder, output_path)
 
