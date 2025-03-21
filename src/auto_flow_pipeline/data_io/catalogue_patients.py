@@ -154,8 +154,8 @@ def get_flow_measurements(patient_name: str, base_path: str) -> dict:
         'PA_auto': PA_auto,
         'Ao_auto_std': Ao_auto_std,
         'PA_auto_std': PA_auto_std,
-        'Qp-Qs_auto': Qp_Qs,
-        'Qp-Qs_auto_std': Qp_Qs_auto_std
+        'Qp/Qs_auto': Qp_Qs,
+        'Qp/Qs_auto_std': Qp_Qs_auto_std
     }
 
     return flow_measurements

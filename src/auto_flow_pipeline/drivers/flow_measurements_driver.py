@@ -44,8 +44,8 @@ def consolidate_flow_measurements(base_output_folder: str, output_path: str):
                     main_logger.error(f"Error processing flow measurements for patient {pid}: {e}")
 
         flow_measurements_df = pd.DataFrame(flow_measurements_list, columns=['patient_id','Ao_auto', 'Ao_auto_std',
-                                                                             'PA_auto', 'PA_auto_std', 'Qp-Qs_auto',
-                                                                             'Qp-Qs_auto_std', 'A1', 'A2', 'A3','A4',
+                                                                             'PA_auto', 'PA_auto_std', 'Qp/Qs_auto',
+                                                                             'Qp/Qs_auto_std', 'A1', 'A2', 'A3','A4',
                                                                              'A5', 'P1', 'P2', 'P3', 'P4', 'P5'])
         flow_measurements_df.to_csv(output_path, index=False)
         main_logger.info(f"Saved consolidated flow measurements to {output_path}")
