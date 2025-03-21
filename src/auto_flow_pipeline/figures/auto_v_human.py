@@ -3,7 +3,19 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.ticker import MaxNLocator, FormatStrFormatter
 
-def plot_scatter_basic(df, x_col, y_col, ax, color='blue', label=None, point_size=5, alpha=1):
+
+def plot_scatter_basic(
+    df,
+    x_col,
+    y_col,
+    ax,
+    color='blue',
+    label=None,
+    point_size=5,
+    alpha=1,
+    edgecolors='black',
+    linewidths=0.5
+):
     """
     Plots a simple scatter plot on the provided axes, with control over the point size.
 
@@ -15,14 +27,44 @@ def plot_scatter_basic(df, x_col, y_col, ax, color='blue', label=None, point_siz
         color (str): Color for data points.
         label (str): Label for the legend.
         point_size (int or float): Size of the points.
+        alpha (float): Transparency of the markers.
+        edgecolors (str): Color of marker edges.
+        linewidths (float): Width of marker edges.
     """
-    ax.scatter(df[x_col], df[y_col], color=color,alpha=alpha, label=label, s=point_size)
+    ax.scatter(
+        df[x_col],
+        df[y_col],
+        color=color,
+        alpha=alpha,
+        label=label,
+        s=point_size,
+        edgecolors=edgecolors,
+        linewidths=linewidths
+    )
     ax.grid(False)
 
 
-def plot_scatter_with_error(df, x_col, y_col, std_col, ax, threshold, alpha=1, color='blue', high_std_color='red', high_std_marker='^', max_error_size=None, label_normal='Normal', label_high_std='High Std Dev', point_size=5):
+def plot_scatter_with_error(
+    df,
+    x_col,
+    y_col,
+    std_col,
+    ax,
+    threshold,
+    alpha=1,
+    color='blue',
+    high_std_color='red',
+    high_std_marker='^',
+    max_error_size=None,
+    label_normal='Normal',
+    label_high_std='High Std Dev',
+    point_size=5,
+    edgecolors='black',
+    linewidths=0.5
+):
     """
-    Plots a scatter plot with error bars and highlights points exceeding a standard deviation threshold, with control over the point size.
+    Plots a scatter plot with error bars and highlights points exceeding a standard deviation threshold,
+    with control over the point size, alpha, and optional marker edges.
 
     Parameters:
         df (pd.DataFrame): DataFrame containing the data.
@@ -31,6 +73,7 @@ def plot_scatter_with_error(df, x_col, y_col, std_col, ax, threshold, alpha=1, c
         std_col (str): Column name for standard deviation values.
         ax (matplotlib.axes.Axes): Axes object to plot on.
         threshold (float): Standard deviation threshold for highlighting.
+        alpha (float): Transparency of markers.
         color (str): Color for normal data points.
         high_std_color (str): Color for data points exceeding the threshold.
         high_std_marker (str): Marker style for data points exceeding the threshold.
@@ -38,18 +81,74 @@ def plot_scatter_with_error(df, x_col, y_col, std_col, ax, threshold, alpha=1, c
         label_normal (str): Label for normal data points in the legend.
         label_high_std (str): Label for high standard deviation points in the legend.
         point_size (int or float): Size of the points.
+        edgecolors (str): Edge color for markers.
+        linewidths (float): Edge line width for markers.
     """
     errors = df[std_col].clip(upper=max_error_size) if max_error_size else df[std_col]
     normal_points = df[std_col] <= threshold
     high_std_points = df[std_col] > threshold
 
-    ax.errorbar(df[x_col][normal_points], df[y_col][normal_points], yerr=errors[normal_points], fmt='o', color=color,alpha=alpha, ecolor='black', label=label_normal, elinewidth=1, markersize=np.sqrt(point_size))
-    ax.errorbar(df[x_col][high_std_points], df[y_col][high_std_points], yerr=errors[high_std_points], fmt=high_std_marker,alpha=alpha, color=high_std_color, ecolor='black', label=label_high_std, elinewidth=1, markersize=np.sqrt(point_size))
+    # Plot error bars (no markers)
+    ax.errorbar(
+        df[x_col][normal_points],
+        df[y_col][normal_points],
+        yerr=errors[normal_points],
+        fmt='none',
+        ecolor='black',
+        alpha=alpha,
+        label=label_normal,
+        elinewidth=1
+    )
+    # Plot normal points as scatter
+    ax.scatter(
+        df[x_col][normal_points],
+        df[y_col][normal_points],
+        color=color,
+        alpha=alpha,
+        label=label_normal,
+        s=point_size,
+        edgecolors=edgecolors,
+        linewidths=linewidths
+    )
+
+    # Plot error bars (no markers) for high STD points
+    ax.errorbar(
+        df[x_col][high_std_points],
+        df[y_col][high_std_points],
+        yerr=errors[high_std_points],
+        fmt='none',
+        ecolor='black',
+        alpha=alpha,
+        label=label_high_std,
+        elinewidth=1
+    )
+    # Plot high STD points as scatter
+    ax.scatter(
+        df[x_col][high_std_points],
+        df[y_col][high_std_points],
+        color=high_std_color,
+        alpha=alpha,
+        label=label_high_std,
+        s=point_size,
+        marker=high_std_marker,
+        edgecolors=edgecolors,
+        linewidths=linewidths
+    )
 
     ax.grid(False)
 
 
-def customize_plot(ax, xlabel=None, ylabel=None, title=None, xlim=None, ylim=None, show_legend=True, legend_fontsize=12, tick_label_fontsize=12):
+def customize_plot(
+    ax,
+    xlabel=None,
+    ylabel=None,
+    title=None,
+    xlim=None,
+    ylim=None,
+    show_legend=True,
+    legend_fontsize=12,
+    tick_label_fontsize=12
+):
     """
     Customizes the aesthetics of a plot, including optional axis labels, title, and optional legend.
     Adds control over the font sizes of tick labels and formats ticks to show integer labels.
@@ -172,21 +271,45 @@ def add_correlation_text_with_markers(ax, labels, r_values, p_values, colors,
     # Create a dictionary for custom colors in LaTeX
     from matplotlib import rcParams
     rcParams['text.usetex'] = True
-    rcParams['text.latex.preamble'] = [r'\usepackage{xcolor}']
+    rcParams['text.latex.preamble'] = [r'\\usepackage{xcolor}']
     
     # Modify text to include color commands
     colored_text_lines = []
     for line, color in zip(text_lines, colors):
-        colored_line = r'\textcolor{' + color + '}{' + line + '}'
+        colored_line = r'\\textcolor{' + color + '}{' + line + '}'
         colored_text_lines.append(colored_line)
     colored_textstr = '\n'.join(colored_text_lines)
     
     # Add the text box to the plot
-    ax.text(position[0], position[1], colored_textstr, transform=ax.transAxes, fontsize=fontsize,
-            verticalalignment='bottom', horizontalalignment='left',
-            bbox=dict(facecolor='white', alpha=box_alpha, boxstyle='round,pad=0.5'))
-    
-def plot_scatter_with_threshold(df, x_col, y_col, threshold_cols, threshold, ax, alpha=1, color='blue', high_value_color='red', high_value_marker='^', label_normal='Normal', label_high_value='High Value', point_size=5):
+    ax.text(
+        position[0],
+        position[1],
+        colored_textstr,
+        transform=ax.transAxes,
+        fontsize=fontsize,
+        verticalalignment='bottom',
+        horizontalalignment='left',
+        bbox=dict(facecolor='white', alpha=box_alpha, boxstyle='round,pad=0.5')
+    )
+
+
+def plot_scatter_with_threshold(
+    df,
+    x_col,
+    y_col,
+    threshold_cols,
+    threshold,
+    ax,
+    alpha=1,
+    color='blue',
+    high_value_color='red',
+    high_value_marker='^',
+    label_normal='Normal',
+    label_high_value='High Value',
+    point_size=5,
+    edgecolors='black',
+    linewidths=0.5
+):
     """
     Plots a scatter plot and highlights points where any specified columns exceed a threshold.
 
@@ -197,40 +320,79 @@ def plot_scatter_with_threshold(df, x_col, y_col, threshold_cols, threshold, ax,
         threshold_cols (list of str): List of column names to apply the threshold.
         threshold (float): Threshold value for highlighting.
         ax (matplotlib.axes.Axes): Axes object to plot on.
+        alpha (float): Transparency of markers.
         color (str): Color for normal data points.
         high_value_color (str): Color for data points exceeding the threshold.
         high_value_marker (str): Marker style for data points exceeding the threshold.
         label_normal (str): Label for normal data points in the legend.
         label_high_value (str): Label for high value points in the legend.
         point_size (int or float): Size of the points.
+        edgecolors (str): Edge color for markers.
+        linewidths (float): Edge line width for markers.
     """
     # Create a boolean mask for rows where any of the threshold_cols exceed the threshold
     high_value_points = df[threshold_cols].gt(threshold).any(axis=1)
     normal_points = ~high_value_points
 
     # Plot normal points
-    ax.scatter(df.loc[normal_points, x_col], df.loc[normal_points, y_col],
-               c=color, label=label_normal,alpha=alpha, s=point_size)
+    ax.scatter(
+        df.loc[normal_points, x_col],
+        df.loc[normal_points, y_col],
+        c=color,
+        label=label_normal,
+        alpha=alpha,
+        s=point_size,
+        edgecolors=edgecolors,
+        linewidths=linewidths
+    )
 
     # Plot high value points
-    ax.scatter(df.loc[high_value_points, x_col], df.loc[high_value_points, y_col],
-               c=high_value_color, marker=high_value_marker, label=label_high_value,alpha=alpha, s=point_size)
+    ax.scatter(
+        df.loc[high_value_points, x_col],
+        df.loc[high_value_points, y_col],
+        c=high_value_color,
+        marker=high_value_marker,
+        label=label_high_value,
+        alpha=alpha,
+        s=point_size,
+        edgecolors=edgecolors,
+        linewidths=linewidths
+    )
 
     ax.grid(False)
 
 
-
-def create_two_by_three_plot(df_og, alpha=1):
+def create_two_by_three_plot(df_og, alpha=1, edgecolors='black', linewidths=0.5):
     fig, axes = plt.subplots(nrows=2, ncols=3, figsize=(18, 12))
 
     # --- Top row (Human: Ao, PA, Qp/Qs) ---
     # 1) Ao (Human)
     ax = axes[0, 0]
     channel = 'Ao'
-    plot_scatter_basic(df_og, channel + '_AH', channel + '_PR', ax,
-                       color='green', label='Reader 1', point_size=100, alpha=alpha)
-    plot_scatter_basic(df_og, channel + '_AH', channel + '_LS', ax,
-                       color='purple', label='Reader 2', point_size=100, alpha=alpha)
+    plot_scatter_basic(
+        df_og,
+        channel + '_AH',
+        channel + '_PR',
+        ax,
+        color='green',
+        label='Reader 1',
+        point_size=100,
+        alpha=alpha,
+        edgecolors=edgecolors,
+        linewidths=linewidths
+    )
+    plot_scatter_basic(
+        df_og,
+        channel + '_AH',
+        channel + '_LS',
+        ax,
+        color='purple',
+        label='Reader 2',
+        point_size=100,
+        alpha=alpha,
+        edgecolors=edgecolors,
+        linewidths=linewidths
+    )
     customize_plot(ax, xlim=(-1, 12), ylim=(-1, 12),
                    show_legend=False, legend_fontsize=20, tick_label_fontsize=20)
     add_identity_line(ax, line_style='k--', alpha=0.75)
@@ -238,21 +400,61 @@ def create_two_by_three_plot(df_og, alpha=1):
     # 2) PA (Human)
     ax = axes[0, 1]
     channel = 'PA'
-    plot_scatter_basic(df_og, channel + '_AH', channel + '_PR', ax,
-                       color='green', label='Reader 1', point_size=100, alpha=alpha)
-    plot_scatter_basic(df_og, channel + '_AH', channel + '_LS', ax,
-                       color='purple', label='Reader 2', point_size=100, alpha=alpha)
+    plot_scatter_basic(
+        df_og,
+        channel + '_AH',
+        channel + '_PR',
+        ax,
+        color='green',
+        label='Reader 1',
+        point_size=100,
+        alpha=alpha,
+        edgecolors=edgecolors,
+        linewidths=linewidths
+    )
+    plot_scatter_basic(
+        df_og,
+        channel + '_AH',
+        channel + '_LS',
+        ax,
+        color='purple',
+        label='Reader 2',
+        point_size=100,
+        alpha=alpha,
+        edgecolors=edgecolors,
+        linewidths=linewidths
+    )
     customize_plot(ax, xlim=(-1, 16), ylim=(-1, 16),
                    show_legend=False, legend_fontsize=20, tick_label_fontsize=20)
     add_identity_line(ax, line_style='k--', alpha=0.75)
 
-    # 3) Qp/Qs (Human) – unchanged from original
+    # 3) Qp/Qs (Human)
     ax = axes[0, 2]
     channel = 'Qp/Qs'
-    plot_scatter_basic(df_og, channel + '_AH', channel + '_PR', ax,
-                       color='green', label='Reader 1', point_size=100, alpha=alpha)
-    plot_scatter_basic(df_og, channel + '_AH', channel + '_LS', ax,
-                       color='purple', label='Reader 2', point_size=100, alpha=alpha)
+    plot_scatter_basic(
+        df_og,
+        channel + '_AH',
+        channel + '_PR',
+        ax,
+        color='green',
+        label='Reader 1',
+        point_size=100,
+        alpha=alpha,
+        edgecolors=edgecolors,
+        linewidths=linewidths
+    )
+    plot_scatter_basic(
+        df_og,
+        channel + '_AH',
+        channel + '_LS',
+        ax,
+        color='purple',
+        label='Reader 2',
+        point_size=100,
+        alpha=alpha,
+        edgecolors=edgecolors,
+        linewidths=linewidths
+    )
     customize_plot(ax, xlim=(-0.5, 4), ylim=(-0.5, 4),
                    show_legend=False, legend_fontsize=20, tick_label_fontsize=20)
     add_identity_line(ax, line_style='k--', alpha=0.75)
@@ -277,7 +479,9 @@ def create_two_by_three_plot(df_og, alpha=1):
         max_error_size=0.5,
         label_normal='AutoFlow',
         label_high_std='AutoFlow High Std Dev',
-        point_size=100
+        point_size=100,
+        edgecolors=edgecolors,
+        linewidths=linewidths
     )
     customize_plot(ax, xlim=(-1, 12), ylim=(-1, 12),
                    show_legend=False, legend_fontsize=20, tick_label_fontsize=20)
@@ -300,13 +504,15 @@ def create_two_by_three_plot(df_og, alpha=1):
         max_error_size=0.5,
         label_normal='AutoFlow',
         label_high_std='AutoFlow High Std Dev',
-        point_size=100
+        point_size=100,
+        edgecolors=edgecolors,
+        linewidths=linewidths
     )
     customize_plot(ax, xlim=(-1, 16), ylim=(-1, 16),
                    show_legend=False, legend_fontsize=20, tick_label_fontsize=20)
     add_identity_line(ax, line_style='k--', alpha=0.75)
 
-    # 6) Qp/Qs (auto) – uses plot_scatter_with_threshold
+    # 6) Qp/Qs (auto)
     ax = axes[1, 2]
     channel = 'Qp/Qs'
     plot_scatter_with_threshold(
@@ -322,7 +528,9 @@ def create_two_by_three_plot(df_og, alpha=1):
         high_value_marker='^',
         label_normal='AutoFlow',
         label_high_value='AutoFlow High Std Dev',
-        point_size=100
+        point_size=100,
+        edgecolors=edgecolors,
+        linewidths=linewidths
     )
     customize_plot(ax, xlim=(-0.5, 4), ylim=(-0.5, 4),
                    show_legend=False, legend_fontsize=20, tick_label_fontsize=20)
