@@ -267,7 +267,7 @@ def create_two_by_three_plot(df_og):
         label_high_std='AutoFlow High Std Dev',
         point_size=100
     )
-    customize_plot(ax, xlim=(-1, 12), ylim=(-1, 12),
+    customize_plot(ax, xlim=(-1, 16), ylim=(-1, 16),
                    show_legend=False, legend_fontsize=20, tick_label_fontsize=20)
     add_identity_line(ax, line_style='k--', alpha=0.75)
 
