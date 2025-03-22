@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.ticker import MaxNLocator, FormatStrFormatter
-
+from matplotlib.ticker import FuncFormatter
 
 def plot_scatter_basic(
     df,
@@ -537,6 +537,160 @@ def create_two_by_three_plot(df_og, alpha=1, edgecolors='black', linewidths=0.5)
     add_identity_line(ax, line_style='k--', alpha=0.75)
     add_horizontal_line(ax, y=1.5, line_style='k:', alpha=0.5)
     add_vertical_line(ax, x=1.5, line_style='k:', alpha=0.5)
+
+    plt.tight_layout()
+    return fig, axes
+
+def filter_dataframe(dataframe, column, threshold):
+    return dataframe[dataframe[column] <= threshold]
+
+def bland_altman_plot(data1, data2, ax=None, title='Bland-Altman Plot', ylim=None, *args, **kwargs):
+    """
+    Generate a Bland-Altman plot with absolute differences, including annotations for mean difference
+    and standard deviation limits, with customizable y-axis limits.
+
+    Parameters:
+        data1 (array-like): Data from the first measurement method.
+        data2 (array-like): Data from the second measurement method.
+        ax (matplotlib.axes.Axes, optional): The axes upon which to plot the figure. If None, will create a new figure.
+        title (str, optional): Title of the plot.
+        ylim (tuple, optional): Tuple of (min, max) for y-axis limits.
+        *args: Additional arguments for plt.scatter.
+        **kwargs: Additional keyword arguments for plt.scatter, e.g., 'marker'.
+
+    Returns:
+        The axes with the Bland-Altman plot.
+    """
+    if ax is None:
+        fig, ax = plt.subplots()
+
+    means = np.mean([data1, data2], axis=0)
+    diffs = data1 - data2
+    mean_diff = np.mean(diffs)
+    std_diff = np.std(diffs)
+
+    # Limits of agreement
+    loa1 = mean_diff - 1.96 * std_diff
+    loa2 = mean_diff + 1.96 * std_diff
+
+    # Plotting
+    ax.scatter(means, diffs, color='blue', *args, **kwargs)
+    ax.axhline(mean_diff, color='red', linestyle='--', label=f'Mean diff: {mean_diff:.2f}')
+    ax.axhline(loa1, color='grey', linestyle='--', label=f'-1.96 SD: {loa1:.2f}')
+    ax.axhline(loa2, color='grey', linestyle='--', label=f'+1.96 SD: {loa2:.2f}')
+
+#     # Annotations
+#     ax.annotate(f'Mean diff: {mean_diff:.2f}', xy=(0.05, mean_diff), xycoords=('axes fraction', 'data'),
+#                 xytext=(0, 10), textcoords='offset points', ha='left', va='bottom', color='red')
+#     ax.annotate(f'-1.96 SD: {loa1:.2f}', xy=(0.05, loa1), xycoords=('axes fraction', 'data'),
+#                 xytext=(0, -10), textcoords='offset points', ha='left', va='top', color='grey')
+#     ax.annotate(f'+1.96 SD: {loa2:.2f}', xy=(0.95, loa2), xycoords=('axes fraction', 'data'),
+#                 xytext=(0, 10), textcoords='offset points', ha='right', va='bottom', color='grey')
+
+    ax.set_title(title)
+    ax.set_xlabel('Mean')
+    ax.set_ylabel('Difference')
+    ax.grid(False)
+    ax.legend()
+
+    if ylim:
+        ax.set_ylim(ylim)
+
+    return ax
+
+def create_bland_altman_2x3(
+    df_og,
+    comp_suffix,
+    bland_altman_plot_func,
+    filter_dataframe_func,
+    threshold=0.5
+):
+    """
+    Creates a 2x3 figure with Bland–Altman plots for Ao, PA, Qp/Qs:
+      - Top row = unfiltered data
+      - Bottom row = filtered data (with your custom logic)
+    
+    Parameters
+    ----------
+    df_og : pd.DataFrame
+        The original unfiltered dataframe.
+    bland_altman_plot_func : function
+        A function for creating Bland–Altman plots. Signature like:
+          bland_altman_plot_func(data1, data2, ax=..., title=..., ylim=...).
+    filter_dataframe_func : function
+        Your filter function, e.g. filter_dataframe(df, column, threshold)
+    threshold : float, default=0.5
+        The threshold to apply for filtering.
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+    axes : np.ndarray of shape (2, 3)
+    """
+    
+    if comp_suffix == "_auto":
+        comp_name = "AutoFlow"
+    elif comp_suffix == "_PR":
+        comp_name = "Reader 1"
+    elif comp_suffix == "_LS":
+        comp_name = "Reader 2"
+    else:
+        # Fallback if you have some other suffix
+        comp_name = f"Comparison {comp_suffix}"
+
+    # -----------------------
+    # 1) Filtering Logic
+    # -----------------------
+    # filtered Ao by Ao_auto_std <= threshold
+    filtered_df_Ao = filter_dataframe_func(df_og, 'Ao_auto_std', threshold)
+    # filtered PA by PA_auto_std <= threshold
+    filtered_df_PA = filter_dataframe_func(df_og, 'PA_auto_std', threshold)
+    # filtered Qp/Qs based on already Ao-filtered, then filtering by PA_auto_std <= threshold
+    filtered_df_QpQs = filter_dataframe_func(filtered_df_Ao, 'PA_auto_std', threshold)
+
+    # -----------------------
+    # 2) Setup Figure & Axes
+    # -----------------------
+    fig, axes = plt.subplots(nrows=2, ncols=3, figsize=(15, 8))  # adjust size if needed
+
+    # We'll handle each channel in a loop
+    all_channels = ['Ao', 'PA', 'Qp/Qs']
+    # This list matches each filtered df
+    filtered_list = [filtered_df_Ao, filtered_df_PA, filtered_df_QpQs]
+
+    for i, channel in enumerate(all_channels):
+        # Decide y-limits (like your code)
+        if channel in ['Ao', 'PA']:
+            ylim = (-8, 8)
+        else:
+            ylim = (-2, 2)
+
+        # Unfiltered data (top row)
+        ax_top = axes[0, i]
+        CNN = channel + comp_suffix
+        GT = channel + '_AH'
+        data1_unf = df_og[GT]
+        data2_unf = df_og[CNN]
+        bland_altman_plot_func(
+            data1_unf,
+            data2_unf,
+            ax=ax_top,
+            title=f"{comp_name} vs Ground Truth: {channel}",
+            ylim=ylim
+        )
+
+        # Filtered data (bottom row)
+        ax_bottom = axes[1, i]
+        df_filt = filtered_list[i]
+        data1_filt = df_filt[GT]
+        data2_filt = df_filt[CNN]
+        bland_altman_plot_func(
+            data1_filt,
+            data2_filt,
+            ax=ax_bottom,
+            title=f"Thresholded {comp_name} vs Ground Truth: {channel}",
+            ylim=ylim
+        )
 
     plt.tight_layout()
     return fig, axes
