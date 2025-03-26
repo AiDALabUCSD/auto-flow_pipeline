@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.ticker import MaxNLocator, FormatStrFormatter
 from matplotlib.ticker import FuncFormatter
+from scipy.stats import pearsonr
+import pingouin as pg
 
 def plot_scatter_basic(
     df,
@@ -694,3 +696,49 @@ def create_bland_altman_2x3(
 
     plt.tight_layout()
     return fig, axes
+
+def analyze_performance_pearsonR(df, landmark, threshold):
+    # Filter the DataFrame for standard deviation below the threshold
+    std_col = f'{landmark}_auto_std'
+    if landmark != 'Qp/Qs':
+        filtered_df = df[df[std_col] < threshold]
+    else:
+        # For Qp/Qs, we need to filter based on both Ao_auto_std and PA_auto_std
+        # filtered Ao by Ao_auto_std <= threshold
+        filtered_df_Ao = filter_dataframe(df, 'Ao_auto_std', threshold)
+        # filtered PA by PA_auto_std <= threshold
+        filtered_df_PA = filter_dataframe(df, 'PA_auto_std', threshold)
+        # filtered Qp/Qs based on already Ao-filtered, then filtering by PA_auto_std <= threshold
+        filtered_df = filter_dataframe(filtered_df_Ao, 'PA_auto_std', threshold)
+        
+    print(len(filtered_df))
+
+    # Ground truth column
+    gt_col = landmark + '_AH'
+
+    # CNN measurements
+    cnn_col = f'{landmark}_auto'
+
+    # Reader 1 measurements
+    reader1_col = f'{landmark}_PR'
+
+    # Reader 2 measurements
+    reader2_col = f'{landmark}_LS'
+
+    # Calculate Pearson correlation coefficient and p-value
+    cnn_corr, cnn_p = pearsonr(filtered_df[gt_col], filtered_df[cnn_col])
+    reader1_corr, reader1_p = pearsonr(filtered_df[gt_col], filtered_df[reader1_col])
+    reader2_corr, reader2_p = pearsonr(filtered_df[gt_col], filtered_df[reader2_col])
+
+    return {
+        'CNN': {'Correlation': cnn_corr, 'P-value': cnn_p},
+        'Reader 1': {'Correlation': reader1_corr, 'P-value': reader1_p},
+        'Reader 2': {'Correlation': reader2_corr, 'P-value': reader2_p}
+    }
+
+def print_results_pearsonR(landmark,results):
+    print(landmark)
+    for key, values in results.items():
+        print(f"{key} Results:")
+        print(f"  Correlation Coefficient: {values['Correlation']:.3f}")
+        print(f"  P-value: {values['P-value']:.3e}\n")
