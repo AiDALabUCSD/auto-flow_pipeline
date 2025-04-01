@@ -160,6 +160,38 @@ def get_flow_measurements(patient_name: str, base_path: str) -> dict:
 
     return flow_measurements
 
+def get_aortic_distances(patient_name: str, base_path: str, indices: list) -> list:
+    """
+    Retrieves the distances from the 'distance_from_start' column in aortic_spline.csv for the given indices.
+
+    Parameters:
+        patient_name (str): The patient identifier.
+        base_path (str): The base path where the patient folder is located.
+        indices (list): List of indices to retrieve distances for.
+
+    Returns:
+        list: A list of distances corresponding to the given indices.
+    """
+    spline_csv = os.path.join(base_path, patient_name, "aortic_spline.csv")
+    aortic_spline_df = pd.read_csv(spline_csv)
+    return aortic_spline_df.loc[indices, 'distance_from_start'].tolist()
+
+def get_pulmonary_distances(patient_name: str, base_path: str, indices: list) -> list:
+    """
+    Retrieves the distances from the 'distance_from_start' column in pulmonary_spline.csv for the given indices.
+
+    Parameters:
+        patient_name (str): The patient identifier.
+        base_path (str): The base path where the patient folder is located.
+        indices (list): List of indices to retrieve distances for.
+
+    Returns:
+        list: A list of distances corresponding to the given indices.
+    """
+    spline_csv = os.path.join(base_path, patient_name, "pulmonary_spline.csv")
+    pulmonary_spline_df = pd.read_csv(spline_csv)
+    return pulmonary_spline_df.loc[indices, 'distance_from_start'].tolist()
+
 def main():
     """
     Example main function to demonstrate directly using functions from dicom_to_nifti.
