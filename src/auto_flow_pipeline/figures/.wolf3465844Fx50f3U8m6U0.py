@@ -6,7 +6,6 @@ from matplotlib.ticker import FuncFormatter
 from scipy.stats import pearsonr
 import pandas as pd
 import pingouin as pg
-from IPython.display import display
 
 def plot_scatter_basic(
     df,
