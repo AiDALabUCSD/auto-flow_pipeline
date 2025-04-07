@@ -4,6 +4,7 @@ import matplotlib.patches as mpatches
 from matplotlib.ticker import MaxNLocator, FormatStrFormatter
 from matplotlib.ticker import FuncFormatter
 from scipy.stats import pearsonr
+import pandas as pd
 import pingouin as pg
 
 def plot_scatter_basic(
@@ -742,3 +743,160 @@ def print_results_pearsonR(landmark,results):
         print(f"{key} Results:")
         print(f"  Correlation Coefficient: {values['Correlation']:.3f}")
         print(f"  P-value: {values['P-value']:.3e}\n")
+
+def reshape_for_icc_all_measurements(df_wide):
+    """
+    Reshape a wide DataFrame (df_wide) into a long form suitable
+    for ICC analysis across ALL measurements (Ao, PA, Qp/Qs) together.
+
+    The returned DataFrame has columns:
+      - 'Phonetic'  (patient ID)
+      - 'Measurement' (e.g. "Ao", "PA", or "Qp/Qs")
+      - 'Rater'       (e.g. "AH", "PR", "LS", "auto")
+      - 'Rating'      (numeric value)
+      - 'UniqueID'    (a combo of Phonetic + Measurement)
+    """
+
+    # Ensure 'Phonetic' is a normal column (not the DataFrame index).
+    if 'Phonetic' not in df_wide.columns:
+        df_wide = df_wide.reset_index(drop=False)
+
+    measurements = ["Ao", "PA"]#, "Qp/Qs"]
+    raters = ["AH", "PR", "LS", "auto"]  # suffixes in wide columns
+
+    long_frames = []
+
+    for meas in measurements:
+        for rater in raters:
+            # e.g. "Ao_AH", "Ao_PR", "Ao_auto", etc.
+            col_name = f"{meas}_{rater}"
+            if col_name not in df_wide.columns:
+                continue  # skip if not present
+
+            # Create the partial long DataFrame
+            tmp = pd.DataFrame({
+                "Phonetic": df_wide["Phonetic"],
+                "Measurement": meas,
+                "Rater": rater,
+                "Rating": df_wide[col_name]
+            })
+            long_frames.append(tmp)
+
+    # Concatenate them
+    df_long = pd.concat(long_frames, ignore_index=True)
+
+    # Create a combined ID for "Phonetic + Measurement"
+    # so each (patient, measurement) pair is treated as the "target" for ICC
+    df_long["UniqueID"] = df_long["Phonetic"].astype(str) + "_" + df_long["Measurement"]
+
+    return df_long
+
+
+def filter_auto_std_wide(df_wide):
+    """
+    For each row (patient):
+      - If Ao_auto_std >= 0.5, set Ao columns (and Ao_auto_std) to NaN.
+      - If PA_auto_std >= 0.5, set PA columns (and PA_auto_std) to NaN.
+      - If Ao_auto_std >= 0.5 OR PA_auto_std >= 0.5, set Qp/Qs columns (and Qp/Qs_auto_std) to NaN.
+    Returns a copy of df_wide with only the 'qualified' columns retained for each measurement.
+    """
+
+    # Make a copy to modify
+    df_filtered = df_wide.copy()
+
+    # -------------------------------------------------------------
+    # 1) Compute all masks from the ORIGINAL df_wide (not df_filtered!)
+    # -------------------------------------------------------------
+    # Ao fails if Ao_auto_std >= 0.5
+    mask_ao_fail = (df_wide["Ao_auto_std"] >= 0.5)
+
+    # PA fails if PA_auto_std >= 0.5
+    mask_pa_fail = (df_wide["PA_auto_std"] >= 0.5)
+
+    # Qp/Qs depends on BOTH Ao and PA (fail if either fails)
+    mask_qpqs_fail = mask_ao_fail | mask_pa_fail
+
+    # -------------------------------------------------------------
+    # 2) Apply the masks in df_filtered
+    # -------------------------------------------------------------
+    # Ao fail => set Ao columns to NaN
+    df_filtered.loc[mask_ao_fail, ["Ao_AH", "Ao_PR", "Ao_LS", "Ao_auto", "Ao_auto_std"]] = float('nan')
+
+    # PA fail => set PA columns to NaN
+    df_filtered.loc[mask_pa_fail, ["PA_AH", "PA_PR", "PA_LS", "PA_auto", "PA_auto_std"]] = float('nan')
+
+    # Qp/Qs fail => set Qp/Qs columns to NaN
+    df_filtered.loc[mask_qpqs_fail, ["Qp/Qs_AH", "Qp/Qs_PR", "Qp/Qs_LS", "Qp/Qs_auto", "Qp/Qs_auto_std"]] = float('nan')
+
+    return df_filtered
+
+
+def perform_pairwise_icc_all(df_long, rater_pairs):
+    """
+    Perform pairwise ICC across ALL measurements (Ao, PA, Qp/Qs) collectively,
+    using 'UniqueID' = (Phonetic + Measurement) as the target.
+
+    df_long is the output of reshape_for_icc_all_measurements.
+    rater_pairs is something like: [("AH","PR"), ("AH","LS"), ("AH","auto")]
+
+    Returns a dict { (r1,r2): icc_df } with pingouin result DataFrames.
+    """
+    results_dict = {}
+
+    for (r1, r2) in rater_pairs:
+        # Subset to only these two raters
+        df_sub = df_long[df_long["Rater"].isin([r1, r2])].copy()
+
+        # If everything is NaN or no rows, skip
+        if df_sub["Rating"].dropna().empty:
+            print(f"No valid rows for {r1} vs {r2}. Skipping.")
+            continue
+
+        # Pingouin ICC: "targets" is UniqueID (patient+measurement)
+        icc = pg.intraclass_corr(
+            data=df_sub,
+            targets="UniqueID",
+            raters="Rater",
+            ratings="Rating"
+        ).set_index("Type")
+
+        print(f"ICC across Ao, PA, Qp/Qs combined: {r1} vs {r2}")
+        display(icc)
+
+        results_dict[(r1, r2)] = icc
+
+    return results_dict
+
+def get_low_cert_complement(df_original, df_filtered):
+    """
+    Creates a 'low-cert' complement of the df_filtered output from filter_auto_std_wide.
+    For each measurement column, if df_filtered has NaN, that means it was flagged
+    as low-cert. We keep the original data in that location.
+    Otherwise, we set it to NaN.
+    
+    Parameters
+    ----------
+    df_original : pd.DataFrame
+        The original unfiltered DataFrame (wide form).
+    df_filtered : pd.DataFrame
+        The output from filter_auto_std_wide(df_original).
+    
+    Returns
+    -------
+    df_low : pd.DataFrame
+        The complement dataset: columns that are NaN in df_filtered are kept
+        from df_original (low-cert), while columns that survived in df_filtered
+        become NaN here.
+    """
+    df_low = df_original.copy()
+    # For every column in df_filtered, if it's NOT NaN, it survived => set df_low to NaN
+    # if it's NaN in df_filtered, that means it failed => keep original in df_low
+    
+    for col in df_filtered.columns:
+        # Where df_filtered[col] is non-null => that measurement was high-cert
+        # so in df_low we set it to NaN
+        mask_survived = df_filtered[col].notna()
+        df_low.loc[mask_survived, col] = float('nan')
+    
+    return df_low
+

@@ -28,4 +28,5 @@ run_segnet = "auto_flow_pipeline.drivers.run_segnet_driver:main"
 reverse_segnet_preprocessing = "auto_flow_pipeline.drivers.reverse_segnet_preprocessing_driver:main"
 compute_flow = "auto_flow_pipeline.drivers.compute_flow_driver:main"
 catalogue_flow = "auto_flow_pipeline.drivers.flow_measurements_driver:main"
+measure_distances_between_planes = "auto_flow_pipeline.drivers.measure_distances_between_planes_driver:main"
 
