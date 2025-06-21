@@ -699,6 +699,123 @@ def create_bland_altman_2x3(
     plt.tight_layout()
     return fig, axes
 
+def bland_altman_plot_dual_dataset(
+    data1_a, data2_a,
+    data1_b, data2_b,
+    ax,
+    title='Bland-Altman Plot (Dual Dataset)',
+    color_a='blue',
+    color_b='orange',
+    label_a='Dataset A',
+    label_b='Dataset B',
+    alpha=1.0,
+    point_size=50,
+    ylim=None
+):
+    """
+    Plots a Bland–Altman plot comparing two datasets with different colors.
+
+    Parameters:
+        data1_a, data2_a: Arrays for dataset A (e.g., ground truth and prediction)
+        data1_b, data2_b: Arrays for dataset B
+        ax: Matplotlib axes to draw on
+        color_a, color_b: Marker colors
+        label_a, label_b: Labels for legend
+        alpha: Marker transparency
+        point_size: Marker size
+        ylim: Optional y-axis limits
+    """
+    def plot_dataset(data1, data2, color, label):
+        means = np.mean([data1, data2], axis=0)
+        diffs = data1 - data2
+        ax.scatter(means, diffs, color=color, alpha=alpha, s=point_size)
+        return diffs
+
+    diffs_a = plot_dataset(data1_a, data2_a, color_a, label_a)
+    diffs_b = plot_dataset(data1_b, data2_b, color_b, label_b)
+
+    all_diffs = np.concatenate([diffs_a, diffs_b])
+    mean_diff = np.mean(all_diffs)
+    std_diff = np.std(all_diffs)
+    loa1 = mean_diff - 1.96 * std_diff
+    loa2 = mean_diff + 1.96 * std_diff
+
+    ax.axhline(mean_diff, color='red', linestyle='--', label=f'Mean diff: {mean_diff:.2f}')
+    ax.axhline(loa1, color='grey', linestyle='--', label=f'-1.96 SD: {loa1:.2f}')
+    ax.axhline(loa2, color='grey', linestyle='--', label=f'+1.96 SD: {loa2:.2f}')
+
+    ax.set_title(title)
+    ax.set_xlabel('Mean')
+    ax.set_ylabel('Difference')
+    ax.legend()
+    ax.grid(False)
+
+    if ylim:
+        ax.set_ylim(ylim)
+
+def create_bland_altman_2x3_dual_dataset(
+    df_a,
+    df_b,
+    comp_suffix="_auto",
+    threshold=0.5,
+    label_a='Dataset A',
+    label_b='Dataset B',
+    color_a='blue',
+    color_b='orange'
+):
+    fig, axes = plt.subplots(nrows=2, ncols=3, figsize=(15, 8), constrained_layout=True)
+    channels = ['Ao', 'PA', 'Qp/Qs']
+
+    for i, channel in enumerate(channels):
+        x_col = f"{channel}_AH"
+        y_col = f"{channel}{comp_suffix}"
+
+        std_col = f"{channel}_auto_std" if channel != "Qp/Qs" else None  # Special case handled below
+
+        # Filtered data
+        def apply_filters(df):
+            if channel == "Qp/Qs":
+                df = filter_dataframe(df, "Ao_auto_std", threshold)
+                df = filter_dataframe(df, "PA_auto_std", threshold)
+            else:
+                df = filter_dataframe(df, std_col, threshold)
+            return df
+
+        df_a_filt = apply_filters(df_a)
+        df_b_filt = apply_filters(df_b)
+
+        # Top: Unfiltered
+        ax = axes[0, i]
+        bland_altman_plot_dual_dataset(
+            df_a[x_col], df_a[y_col],
+            df_b[x_col], df_b[y_col],
+            ax=ax,
+            title=f'{channel} (All)',
+            label_a=label_a,
+            label_b=label_b,
+            color_a=color_a,
+            color_b=color_b,
+            ylim=(-8, 8) if channel in ['Ao', 'PA'] else (-2, 2)
+        )
+
+        # Bottom: Filtered
+        ax = axes[1, i]
+        bland_altman_plot_dual_dataset(
+            df_a_filt[x_col], df_a_filt[y_col],
+            df_b_filt[x_col], df_b_filt[y_col],
+            ax=ax,
+            title=f'{channel} (Certainty < {threshold})',
+            label_a=label_a,
+            label_b=label_b,
+            color_a=color_a,
+            color_b=color_b,
+            ylim=(-8, 8) if channel in ['Ao', 'PA'] else (-2, 2)
+        )
+
+    # plt.tight_layout()
+    return fig, axes
+
+
 def analyze_performance_pearsonR(df, landmark, threshold):
     # Filter the DataFrame for standard deviation below the threshold
     std_col = f'{landmark}_auto_std'
