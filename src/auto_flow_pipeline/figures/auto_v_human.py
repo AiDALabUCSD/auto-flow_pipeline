@@ -548,7 +548,7 @@ def create_two_by_three_plot(df_og, alpha=1, edgecolors='black', linewidths=0.5)
 def filter_dataframe(dataframe, column, threshold):
     return dataframe[dataframe[column] <= threshold]
 
-def bland_altman_plot(data1, data2, ax=None, title='Bland-Altman Plot', ylim=None, *args, **kwargs):
+def bland_altman_plot(data1, data2, ax=None, title='Bland-Altman Plot', ylim=None, color='blue', *args, **kwargs):
     """
     Generate a Bland-Altman plot with absolute differences, including annotations for mean difference
     and standard deviation limits, with customizable y-axis limits.
@@ -578,7 +578,7 @@ def bland_altman_plot(data1, data2, ax=None, title='Bland-Altman Plot', ylim=Non
     loa2 = mean_diff + 1.96 * std_diff
 
     # Plotting
-    ax.scatter(means, diffs, color='blue', *args, **kwargs)
+    ax.scatter(means, diffs, color=color, *args, **kwargs)
     ax.axhline(mean_diff, color='red', linestyle='--', label=f'Mean diff: {mean_diff:.2f}')
     ax.axhline(loa1, color='grey', linestyle='--', label=f'-1.96 SD: {loa1:.2f}')
     ax.axhline(loa2, color='grey', linestyle='--', label=f'+1.96 SD: {loa2:.2f}')
@@ -607,6 +607,7 @@ def create_bland_altman_2x3(
     comp_suffix,
     bland_altman_plot_func,
     filter_dataframe_func,
+    color,
     threshold=0.5
 ):
     """
@@ -659,6 +660,7 @@ def create_bland_altman_2x3(
 
     # We'll handle each channel in a loop
     all_channels = ['Ao', 'PA', 'Qp/Qs']
+    all_units = ['L/min', 'L/min', 'Unitless']
     # This list matches each filtered df
     filtered_list = [filtered_df_Ao, filtered_df_PA, filtered_df_QpQs]
 
@@ -679,8 +681,9 @@ def create_bland_altman_2x3(
             data1_unf,
             data2_unf,
             ax=ax_top,
-            title=f"{comp_name} vs Ground Truth: {channel}",
-            ylim=ylim
+            title=f"{comp_name} vs Ground Truth: {channel} ({all_units[i]})",
+            ylim=ylim,
+            color=color
         )
 
         # Filtered data (bottom row)
@@ -693,7 +696,8 @@ def create_bland_altman_2x3(
             data2_filt,
             ax=ax_bottom,
             title=f"Thresholded {comp_name} vs Ground Truth: {channel}",
-            ylim=ylim
+            ylim=ylim,
+            color=color
         )
 
     plt.tight_layout()
@@ -703,14 +707,16 @@ def bland_altman_plot_dual_dataset(
     data1_a, data2_a,
     data1_b, data2_b,
     ax,
-    title='Bland-Altman Plot (Dual Dataset)',
+    title= None,
     color_a='blue',
     color_b='orange',
-    label_a='Dataset A',
-    label_b='Dataset B',
+    label_a= None,
+    label_b= None,
     alpha=1.0,
     point_size=50,
-    ylim=None
+    ylim=None,
+    edgecolors='black',
+    linewidths=0.5
 ):
     """
     Plots a Bland–Altman plot comparing two datasets with different colors.
@@ -728,7 +734,7 @@ def bland_altman_plot_dual_dataset(
     def plot_dataset(data1, data2, color, label):
         means = np.mean([data1, data2], axis=0)
         diffs = data1 - data2
-        ax.scatter(means, diffs, color=color, alpha=alpha, s=point_size)
+        ax.scatter(means, diffs, color=color, alpha=alpha, s=point_size, edgecolors=edgecolors, linewidths=linewidths)
         return diffs
 
     diffs_a = plot_dataset(data1_a, data2_a, color_a, label_a)
@@ -745,8 +751,8 @@ def bland_altman_plot_dual_dataset(
     ax.axhline(loa2, color='grey', linestyle='--', label=f'+1.96 SD: {loa2:.2f}')
 
     ax.set_title(title)
-    ax.set_xlabel('Mean')
-    ax.set_ylabel('Difference')
+    # ax.set_xlabel('Mean')
+    # ax.set_ylabel('Difference')
     ax.legend()
     ax.grid(False)
 
@@ -763,9 +769,20 @@ def create_bland_altman_2x3_dual_dataset(
     color_a='blue',
     color_b='orange'
 ):
+    if comp_suffix == "_auto":
+        comp_name = "AutoFlow"
+    elif comp_suffix == "_PR":
+        comp_name = "Reader 1"
+    elif comp_suffix == "_LS":
+        comp_name = "Reader 2"
+    else:
+        # Fallback if you have some other suffix
+        comp_name = f"Comparison {comp_suffix}"
+    
     fig, axes = plt.subplots(nrows=2, ncols=3, figsize=(15, 8), constrained_layout=True)
     channels = ['Ao', 'PA', 'Qp/Qs']
-
+    all_units = ['L/min', 'L/min', 'Unitless']
+    
     for i, channel in enumerate(channels):
         x_col = f"{channel}_AH"
         y_col = f"{channel}{comp_suffix}"
@@ -790,13 +807,15 @@ def create_bland_altman_2x3_dual_dataset(
             df_a[x_col], df_a[y_col],
             df_b[x_col], df_b[y_col],
             ax=ax,
-            title=f'{channel} (All)',
-            label_a=label_a,
-            label_b=label_b,
+            # title=f'{comp_name} vs Ground Truth: {channel} ({all_units[i]})',
+            # label_a=label_a,
+            # label_b=label_b,
             color_a=color_a,
             color_b=color_b,
             ylim=(-8, 8) if channel in ['Ao', 'PA'] else (-2, 2)
         )
+        customize_plot(ax, ylim=(-8, 8) if channel in ['Ao', 'PA'] else (-2, 2),
+                   show_legend=False, legend_fontsize=10, tick_label_fontsize=20)
 
         # Bottom: Filtered
         ax = axes[1, i]
@@ -804,13 +823,15 @@ def create_bland_altman_2x3_dual_dataset(
             df_a_filt[x_col], df_a_filt[y_col],
             df_b_filt[x_col], df_b_filt[y_col],
             ax=ax,
-            title=f'{channel} (Certainty < {threshold})',
-            label_a=label_a,
-            label_b=label_b,
+            # title=f'High Certainty {comp_name} vs Ground Truth: {channel} ({all_units[i]})',
+            # label_a=label_a,
+            # label_b=label_b,
             color_a=color_a,
             color_b=color_b,
             ylim=(-8, 8) if channel in ['Ao', 'PA'] else (-2, 2)
         )
+        customize_plot(ax, ylim=(-8, 8) if channel in ['Ao', 'PA'] else (-2, 2),
+                   show_legend=False, legend_fontsize=20, tick_label_fontsize=20)
 
     # plt.tight_layout()
     return fig, axes
