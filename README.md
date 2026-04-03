@@ -104,4 +104,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Citation
 
-[Add citation once the paper is published in *Radiology: Cardiothoracic Imaging*]
+Yeluru ARR, Tycko A, Cazares N Jr, Masutani EM, Sankaran RR, Rushworth PM, Hall KM, Sung L, Hsiao A. Deep Learning Automated Measurement of Shunt Severity with Estimation of Uncertainty in 4D Flow MRI. Radiol Cardiothorac Imaging. 2026 Feb;8(1):e250138. doi: 10.1148/ryct.250138. PMID: 41711549; PMCID: PMC12949416.
