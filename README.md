@@ -5,7 +5,7 @@ This repository contains the implementation of AutoFlow, a medical imaging pipel
 ## Project Status
 
 - **Version**: 3.0.0
-- **Status**: Paper resubmitted to *Radiology: Cardiothoracic Imaging*
+- **Status**: Published in *Radiology: Cardiothoracic Imaging*
 - **Author**: Akhilesh Yeluru
 
 ## Pipeline Overview
